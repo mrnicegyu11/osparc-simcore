@@ -4,20 +4,20 @@
 changelog:
   exclude:
     labels:
-      - ignore-for-release
+      - changelog:ignore-for-release
   categories:
     - Added: ✨ New Features
       labels:
-        - new-feature
+        - changelog:new-feature
     - Changed: ♻️ Changed and Improved Functionalities 
       labels:
-        - enhancement
-        - refactor
+        - changelog:enhancement
+        - changelog:refactor
     - Fixed: 🐛 Bugfixes and Security Improvements
       labels:
-        - bugfix
-        - security
+        - changelog:bugfix
+        - changelog:security
     - Removed: 🔥 Removed and Deprecated Features
       labels:
-        - removal
-        - deprecation
+        - changelog:removal
+        - changelog:deprecation
