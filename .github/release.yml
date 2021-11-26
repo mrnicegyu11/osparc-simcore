@@ -1,0 +1,23 @@
+# .github/release.yml
+# Modified from https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+# and https://gitmoji.dev/
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+  categories:
+    - Added: ✨ New Features
+      labels:
+        - new-feature
+    - Changed: ♻️ Changed and Improved Functionalities 
+      labels:
+        - enhancement
+        - refactor
+    - Fixed: 🐛 Bugfixes and Security Improvements
+      labels:
+        - bugfix
+        - security
+    - Removed: 🔥 Removed and Deprecated Features
+      labels:
+        - removal
+        - deprecation
