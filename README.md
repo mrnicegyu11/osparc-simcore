@@ -4,7 +4,7 @@
 <img src="https://user-images.githubusercontent.com/32800795/61083844-ff48fb00-a42c-11e9-8e63-fa2d709c8baf.png" width="500">
 </p>
 
-
+ 
 <!-- NOTE: when branched replace `master` in urls -->
 [![Code style: black]](https://github.com/psf/black)
 [![Requires.io]](https://requires.io/github/ITISFoundation/osparc-simcore/requirements/?branch=master "State of third party python dependencies")
