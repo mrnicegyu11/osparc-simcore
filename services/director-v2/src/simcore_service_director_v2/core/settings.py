@@ -25,7 +25,7 @@ from settings_library.tracing import TracingSettings
 from settings_library.utils_logging import MixinLoggingSettings
 
 from ..meta import API_VTAG
-from ..models.schemas.constants import DYNAMIC_SIDECAR_DOCKER_IMAGE_RE, ClusterID
+from ..models.schemas.constants import ClusterID
 
 MINS = 60
 API_ROOT: str = "api"
@@ -126,7 +126,6 @@ class DynamicSidecarSettings(BaseCustomSettings):
     )
     DYNAMIC_SIDECAR_IMAGE: str = Field(
         ...,
-        regex=DYNAMIC_SIDECAR_DOCKER_IMAGE_RE,
         description="used by the director to start a specific version of the dynamic-sidecar",
     )
 
@@ -219,11 +218,6 @@ class DynamicSidecarSettings(BaseCustomSettings):
     DYNAMIC_SIDECAR_DOCKER_COMPOSE_VERSION: str = Field(
         "3.8", description="docker-compose version used in the compose-specs"
     )
-
-    @validator("DYNAMIC_SIDECAR_IMAGE", pre=True)
-    @classmethod
-    def strip_leading_slashes(cls, v) -> str:
-        return v.lstrip("/")
 
 
 class DynamicServicesSchedulerSettings(BaseCustomSettings):
