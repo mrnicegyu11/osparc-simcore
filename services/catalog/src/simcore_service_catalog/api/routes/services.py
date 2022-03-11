@@ -39,7 +39,6 @@ RESPONSE_MODEL_POLICY = {
 }
 
 DIRECTOR_CACHING_TTL = 5 * MINUTE
-LIST_SERVICES_CACHING_TTL = 30
 
 
 def _prepare_service_details(
@@ -70,19 +69,8 @@ def _prepare_service_details(
     return validated_service
 
 
-def _build_cache_key(fct, *_, **kwargs):
-    return f"{fct.__name__}_{kwargs['user_id']}_{kwargs['x_simcore_products_name']}_{kwargs['details']}"
-
-
-# NOTE: this call is pretty expensive and can be called several times
-# (when e2e runs or by the webserver when listing projects) therefore
-# a cache is setup here
 @router.get("", response_model=List[ServiceOut], **RESPONSE_MODEL_POLICY)
 @cancellable_request
-@cached(
-    ttl=LIST_SERVICES_CACHING_TTL,
-    key_builder=_build_cache_key,
-)
 async def list_services(
     request: Request,  # pylint:disable=unused-argument
     user_id: PositiveInt,
