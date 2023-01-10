@@ -13,8 +13,8 @@ function parseCommandLineArguments(args) {
   // --user_prefix [userPrefix]
   // --user_suffix [userSuffix]
   // --start_timeout [startTimeout]
-  // --basicauth_user [basicauth_username]
-  // --basicauth_pass [basicauth_password]
+  // --basicauth_user [basicauthUsername]
+  // --basicauth_pass [basicauthPassword]
   // --demo
 
   if (args.length < 1) {
@@ -60,16 +60,16 @@ function parseCommandLineArguments(args) {
     startTimeout = args[startTimeoutIdx + 1];
   }
 
-  let basicauth_username = "";
-  const basicauth_usernameIdx = args.indexOf('--basicauth_user');
-  if (basicauth_usernameIdx > -1) {
-    basicauth_username = args[basicauth_usernameIdx + 1];
+  let basicauthUsername = "";
+  const basicauthUsernameIdx = args.indexOf('--basicauth_user');
+  if (basicauthUsernameIdx > -1) {
+    basicauthUsername = args[basicauthUsernameIdx + 1];
   }
 
-  let basicauth_password = "";
-  const basicauth_passwordIdx = args.indexOf('--basicauth_pass');
-  if (basicauth_passwordIdx > -1) {
-    basicauth_password = args[basicauth_passwordIdx + 1];
+  let basicauthPassword = "";
+  const basicauthPasswordIdx = args.indexOf('--basicauth_pass');
+  if (basicauthPasswordIdx > -1) {
+    basicauthPassword = args[basicauthPasswordIdx + 1];
   }
   const enableDemoMode = (args.indexOf("--demo") > -1);
 
@@ -90,14 +90,22 @@ function parseCommandLineArguments(args) {
     userPrefix,
     userSuffix,
     startTimeout,
-    enableDemoMode,
-    basicauth_username,
-    basicauth_password
+    basicauthUsername,
+    basicauthPassword,
+    enableDemoMode
   }
 }
 
 function parseCommandLineArgumentsAnonymous(args) {
-  // node $template.js [url_prefix] [template_uuid] [start_timeout] [--demo] [basicauth_username] [basicauth_password]
+  // node $tutorial.js
+  // url
+  // --url_prefix [urlPrefix]
+  // --template_uuid [templateUuid]
+  // --start_timeout [startTimeout]
+  // --basicauth_user [basicauthUsername]
+  // --basicauth_pass [basicauthPassword]
+  // --demo
+  // node $template.js [url_prefix] [template_uuid] [start_timeout] [basicauthUsername] [basicauthPassword] [--demo]
 
   if (args.length < 3) {
     console.log('More arguments expected: $template.js [url_prefix] [template_uuid] [start_timeout] [--demo]');
@@ -107,27 +115,28 @@ function parseCommandLineArgumentsAnonymous(args) {
   const urlPrefix = args[0];
   const templateUuid = args[1];
   const startTimeout = args[2];
+
+  let basicauthUsername = "";
+  const basicauthUsernameIdx = args.indexOf('--basicauth_user');
+  if (basicauthUsernameIdx > -1) {
+    basicauthUsername = args[basicauthUsernameIdx + 1];
+  }
+
+  let basicauthPassword = "";
+  const basicauthPasswordIdx = args.indexOf('--basicauth_pass');
+  if (basicauthPasswordIdx > -1) {
+    basicauthPassword = args[basicauthPasswordIdx + 1];
+  }
+
   const enableDemoMode = args.includes("--demo");
-
-  let basicauth_username = "";
-  const basicauth_usernameIdx = args.indexOf('--basicauth_user');
-  if (basicauth_usernameIdx > -1) {
-    basicauth_username = args[basicauth_usernameIdx + 1];
-  }
-
-  let basicauth_password = "";
-  const basicauth_passwordIdx = args.indexOf('--basicauth_pass');
-  if (basicauth_passwordIdx > -1) {
-    basicauth_password = args[basicauth_passwordIdx + 1];
-  }
 
   return {
     urlPrefix,
     templateUuid,
     startTimeout,
-    enableDemoMode,
-    basicauth_username,
-    basicauth_password
+    basicauthUsername,
+    basicauthPassword,
+    enableDemoMode
   }
 }
 
