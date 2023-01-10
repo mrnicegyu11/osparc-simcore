@@ -59,7 +59,10 @@ class TutorialBase {
       "X-Simcore-User-Agent": "puppeteer"
     });
     if (this.__basicauthuser != "" && this.__basicauthpass != "") {
-      await this.__page.authenticate({'username':this.__basicauthuser, 'password': this.__basicauthpass});
+      await this.__page.authenticate({
+        "username": this.__basicauthuser,
+        "password": this.__basicauthpass
+      });
     }
     this.__responsesQueue = new responses.ResponsesQueue(this.__page);
 

@@ -7,18 +7,18 @@ const DEFAULT_TIMEOUT = 60000;
 function parseCommandLineArguments(args) {
   // node $tutorial.js
   // url
-  // --user [user]
-  // --pass [pass]
-  // --n_users [nUsers]
-  // --user_prefix [userPrefix]
-  // --user_suffix [userSuffix]
-  // --start_timeout [startTimeout]
-  // --basicauth_user [basicauthUsername]
-  // --basicauth_pass [basicauthPassword]
-  // --demo
+  // [--user user]
+  // [--pass pass]
+  // [--n_users nUsers]
+  // [--user_prefix userPrefix]
+  // [--user_suffix userSuffix]
+  // [--start_timeout startTimeout]
+  // [--basicauth_user basicauthUsername]
+  // [--basicauth_pass basicauthPassword]
+  // [--demo]
 
   if (args.length < 1) {
-    console.log('More arguments expected');
+    console.log('Minimum arguments expected: $tutorial.js url');
     process.exit(1);
   }
 
@@ -97,18 +97,16 @@ function parseCommandLineArguments(args) {
 }
 
 function parseCommandLineArgumentsAnonymous(args) {
-  // node $tutorial.js
-  // url
-  // --url_prefix [urlPrefix]
-  // --template_uuid [templateUuid]
-  // --start_timeout [startTimeout]
-  // --basicauth_user [basicauthUsername]
-  // --basicauth_pass [basicauthPassword]
-  // --demo
-  // node $template.js [url_prefix] [template_uuid] [start_timeout] [basicauthUsername] [basicauthPassword] [--demo]
+  // node $template.js
+  // url_prefix
+  // template_uuid
+  // start_timeout
+  // [--basicauth_user basicauthUsername]
+  // [--basicauth_pass basicauthPassword]
+  // [--demo]
 
   if (args.length < 3) {
-    console.log('More arguments expected: $template.js [url_prefix] [template_uuid] [start_timeout] [--demo]');
+    console.log('Minimum arguments expected: $template.js url_prefix template_uuid, start_timeout');
     process.exit(1);
   }
 
