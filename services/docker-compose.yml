@@ -847,26 +847,7 @@ services:
       - interactive_services_subnet
       - storage_subnet
 
-  rabbit:
-    image: itisfoundation/rabbitmq:3.11.2-management
-    init: true
-    hostname: "{{.Node.Hostname}}-{{.Service.Name}}-{{.Task.Slot}}"
-    environment:
-      - RABBITMQ_DEFAULT_USER=${RABBIT_USER}
-      - RABBITMQ_DEFAULT_PASS=${RABBIT_PASSWORD}
-    volumes:
-      - rabbit_data:/var/lib/rabbitmq
-    networks:
-      - default
-      - interactive_services_subnet
-      - autoscaling_subnet
-    healthcheck:
-      # see https://www.rabbitmq.com/monitoring.html#individual-checks for info about health-checks available in rabbitmq
-      test: rabbitmq-diagnostics -q status
-      interval: 5s
-      timeout: 30s
-      retries: 5
-      start_period: 5s
+
 
   migration:
     image: ${DOCKER_REGISTRY:-itisfoundation}/migration:${DOCKER_IMAGE_TAG:-latest}
@@ -882,162 +863,19 @@ services:
     networks:
       - default # actually needed for the postgres service only
 
-  postgres:
-    image: "postgres:14.8-alpine@sha256:150dd39ccb7ae6c7ba6130c3582c39a30bb5d3d22cb08ad0ba37001e3f829abc"
-    init: true
-    hostname: "{{.Node.Hostname}}-{{.Service.Name}}-{{.Task.Slot}}"
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_USER=${POSTGRES_USER}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - type: tmpfs
-        target: /dev/shm
-        tmpfs:
-          size: 16000000000
-    networks:
-      - default
-      - interactive_services_subnet
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "pg_isready",
-          "--username",
-          "${POSTGRES_USER}",
-          "--dbname",
-          "${POSTGRES_DB}"
-        ]
-      interval: 5s
-      retries: 5
-    # NOTES: this is not yet compatible with portainer deployment but could work also for other containers
-    # works with Docker 19.03 and not yet with Portainer 1.23.0 (see https://github.com/portainer/portainer/issues/3551)
-    # in the meantime postgres allows to set a configuration through CLI.
-    # sysctls:
-    #   # NOTES: these values are needed here because docker swarm kills long running idle
-    #   # connections by default after 15 minutes see https://github.com/moby/moby/issues/31208
-    #   # info about these values are here https://tldp.org/HOWTO/TCP-Keepalive-HOWTO/usingkeepalive.html
-    #   - net.ipv4.tcp_keepalive_intvl=600
-    #   - net.ipv4.tcp_keepalive_probes=9
-    #   - net.ipv4.tcp_keepalive_time=600
-    command:
-      [
-        "postgres",
-        "-c",
-        "tcp_keepalives_idle=600",
-        "-c",
-        "tcp_keepalives_interval=600",
-        "-c",
-        "tcp_keepalives_count=5",
-        "-c",
-        "max_connections=413",
-        "-c",
-        "shared_buffers=256MB"
-      ]
-
-  redis:
-    image: "redis:6.2.6@sha256:4bed291aa5efb9f0d77b76ff7d4ab71eee410962965d052552db1fb80576431d"
-    init: true
-    hostname: "{{.Node.Hostname}}-{{.Service.Name}}-{{.Task.Slot}}"
-    command:
-      # redis server will write a backup every 60 seconds if at least 1 key was changed
-      # also aof (append only) is also enabled such that we get full durability at the expense
-      # of backup size. The backup is written into /data.
-      # https://redis.io/topics/persistence
-      [
-        "redis-server",
-        "--save",
-        "60 1",
-        "--loglevel",
-        "verbose",
-        "--databases",
-        "6",
-        "--appendonly",
-        "yes"
-      ]
-    networks:
-      - default
-      - autoscaling_subnet
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 5s
-      timeout: 30s
-      retries: 50
-
-  traefik:
-    image: "traefik:v2.9.8@sha256:553239e27c4614d0477651415205b9b119f7a98f698e6562ef383c9d8ff3b6e6"
-    init: true
-    hostname: "{{.Node.Hostname}}-{{.Service.Name}}-{{.Task.Slot}}"
-    command:
-      - "--api=true"
-      - "--api.dashboard=true"
-      - "--ping=true"
-      - "--entryPoints.ping.address=:9082"
-      - "--ping.entryPoint=ping"
-      - "--log.level=WARNING"
-      - "--accesslog=false"
-      - "--metrics.prometheus=true"
-      - "--metrics.prometheus.addEntryPointsLabels=true"
-      - "--metrics.prometheus.addServicesLabels=true"
-      - "--entryPoints.metrics.address=:8082"
-      - "--metrics.prometheus.entryPoint=metrics"
-      - "--entryPoints.http.address=:80"
-      - "--entryPoints.http.forwardedHeaders.insecure"
-      - "--entryPoints.simcore_api.address=:10081"
-      - "--entryPoints.simcore_api.forwardedHeaders.insecure"
-      - "--entryPoints.traefik_monitor.address=:8080"
-      - "--entryPoints.traefik_monitor.forwardedHeaders.insecure"
-      - "--providers.docker.endpoint=unix:///var/run/docker.sock"
-      - "--providers.docker.network=${SWARM_STACK_NAME}_default"
-      - "--providers.docker.swarmMode=true"
-      # https://github.com/traefik/traefik/issues/7886
-      - "--providers.docker.swarmModeRefreshSeconds=1"
-      - "--providers.docker.exposedByDefault=false"
-      - "--providers.docker.constraints=Label(`io.simcore.zone`, `${TRAEFIK_SIMCORE_ZONE}`)"
-      - "--tracing=true"
-      - "--tracing.jaeger=true"
-      - "--tracing.jaeger.samplingServerURL=http://jaeger:5778/sampling"
-      - "--tracing.jaeger.localAgentHostPort=jaeger:6831"
-    volumes:
-      # So that Traefik can listen to the Docker events
-      - /var/run/docker.sock:/var/run/docker.sock
-    deploy:
-      placement:
-        constraints:
-          - node.role == manager
-      labels:
-        # for each service in the stack a new middlaware for rate limiting needs to be registered here
-        # requests = average / period this is how the limits are defined
-        - traefik.http.middlewares.ratelimit-${SWARM_STACK_NAME}_api-server.ratelimit.average=1
-        - traefik.http.middlewares.ratelimit-${SWARM_STACK_NAME}_api-server.ratelimit.period=1m
-        # a burst is computed over a period of 1 second
-        - traefik.http.middlewares.ratelimit-${SWARM_STACK_NAME}_api-server.ratelimit.burst=10
-        # X-Forwarded-For header extracts second IP from the right, count starts at one
-        - traefik.http.middlewares.ratelimit-${SWARM_STACK_NAME}_api-server.ratelimit.sourcecriterion.ipstrategy.depth=2
-    networks:
-      - default
-      - interactive_services_subnet # for legacy dynamic services
-    #healthcheck:
-    #  test: wget --quiet --tries=1 --spider http://localhost:9082/ping || exit 1
-    #  interval: 3s
-    #  timeout: 1s
-    #  retries: 3
-    #  start_period: 20s
-
 
 volumes:
-  postgres_data:
-    name: ${SWARM_STACK_NAME}_postgres_data
   computational_shared_data:
     name: ${SWARM_STACK_NAME}_computational_shared_data
+  postgres_data:
+    name: ${SWARM_STACK_NAME}_postgres_data
+    external: true
   redis-data:
     name: ${SWARM_STACK_NAME}_redis-data
+    external: true
   rabbit_data:
     name: ${SWARM_STACK_NAME}_rabbit_data
-
+    external: true
 networks:
   default:
     attachable: true

@@ -1,0 +1,100 @@
+# This config shall not be used alone but after docker-compose.yml
+#
+# NOTES:
+# - Overrides docker-compose.yml config when deploying services locally
+# - Should not introduce a substantial different with respect the configuration deployed
+# - Added ports to enforce they are published in the swarm (e.g. for integration testing).
+# - sidecar cannot publish port with ingress mode since it can't be used with dnsrr mode
+# - Port bindings "800X:8000" reserved for rest apis (e.g. /docs, /redoc)
+# - Port bindings "300X:3000" reserved for remote debugging
+#   - debug mode can be activated if SC_BOOT_MODE=debug-ptvsd (this is the default in devel).
+#   - use vscode debugger "Python: Remote Attach *" config in  ''.vscode-template/launch.json'
+#
+version: "3.8"
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+    # https://www.postgresql.org/docs/10/runtime-config-logging.html#GUC-LOG-STATEMENT
+    command:
+      [
+        "postgres",
+        "-c",
+        "tcp_keepalives_idle=600",
+        "-c",
+        "tcp_keepalives_interval=600",
+        "-c",
+        "tcp_keepalives_count=5",
+        "-c",
+        "log_statement=all",
+        "-c",
+        "log_connections=true",
+        "-c",
+        "log_disconnections=true",
+        "-c",
+        "log_duration=true",
+        "-c",
+        "log_line_prefix=%m [%p] %q%u@%d/%a ",
+        "-c",
+        'listen_addresses="*"',
+        "-c",
+        "max_connections=413",
+        "-c",
+        "shared_buffers=256MB"
+      ]
+
+  rabbit:
+    ports:
+      - "5672"
+      - "15672:15672"
+      - "15692"
+
+  redis:
+    ports:
+      - "6379"
+
+  traefik:
+    ports:
+      - target: 80
+        published: 9081
+      - target: 10081
+        published: 10081
+      - target: 8080
+        published: 8080
+    deploy:
+      labels:
+        # traefik dashboard UI accessible through http://127.0.0.1:8080/dashboard/
+        # traefik REST API accessible through for example http://127.0.0.1:8080/api/http/routers
+        - io.simcore.zone=${TRAEFIK_SIMCORE_ZONE}
+        - traefik.enable=true
+        - traefik.http.routers.${SWARM_STACK_NAME}_api_internal.service=api@internal
+        - traefik.http.routers.${SWARM_STACK_NAME}_api_internal.rule=PathPrefix(`/dashboard`) || PathPrefix(`/api`)
+        - traefik.http.routers.${SWARM_STACK_NAME}_api_internal.entrypoints=traefik_monitor
+        - traefik.http.routers.${SWARM_STACK_NAME}_api_internal.middlewares=${SWARM_STACK_NAME}_gzip@docker
+        - traefik.http.services.${SWARM_STACK_NAME}_api_internal.loadbalancer.server.port=8080
+
+  whoami:
+    image: "containous/whoami"
+    # NOTE: helper service allows to better understand how the host gets forwarded inside the simcore stack
+    deploy:
+      labels:
+        # whoami accessible through http://127.0.0.1:8080/whoami
+        - io.simcore.zone=${TRAEFIK_SIMCORE_ZONE}
+        - traefik.enable=true
+        - traefik.http.services.${SWARM_STACK_NAME}_whoami.loadbalancer.server.port=80
+        - traefik.http.routers.${SWARM_STACK_NAME}_whoami.rule=PathPrefix(`/whoami`)
+        - traefik.http.routers.${SWARM_STACK_NAME}_whoami.entrypoints=traefik_monitor
+        - traefik.http.routers.${SWARM_STACK_NAME}_whoami.middlewares=${SWARM_STACK_NAME}_gzip@docker
+  registry:
+    image: registry:2
+    container_name: registry
+    init: true
+    environment:
+      - REGISTRY_STORAGE_DELETE_ENABLED=true
+    ports:
+      - 5000:5000
+    volumes:
+      - registry:/var/lib/registry
+volumes:
+  registry:
+    name: registry

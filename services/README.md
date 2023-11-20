@@ -52,12 +52,12 @@ To deploy the application in a single-node swarm
   - ``user=12345678, password=12345678``
 ##### Network
 - [traefik](http://172.0.0.1:8080/dashboard/): reverse proxy dashboard
-  - [whoami](http://127.0.0.1:8080/whoami): test service to check traefik
+- [whoami](http://127.0.0.1:8080/whoami): test service to check traefik
 
 See details in [docker-compose.local.yml](docker-compose.local.yml).
 
 ##### Local registry
 
 ```!bash
-  make local-registry 
+  make local-registry
 ```
