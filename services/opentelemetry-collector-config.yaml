@@ -6,18 +6,23 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318 # Default endpoint for OTLP over HTTP
 exporters:
-  otlphttp:
+  otlphttp/swarm-jaeger:
     endpoint: ${TRACING_OPENTELEMETRY_COLLECTOR_EXPORTER_ENDPOINT}  # Adjust to your Jaeger endpoint
-  debug:
-    verbosity: detailed
+  otlphttp/k8s-signoz:
+    endpoint: https://opentelemetrycollector.signoz.monitoring.k8s.osparc.local:443
+    tls:
+      insecure: false
+      insecure_skip_verify: true
 service:
   pipelines:
-    traces:
+    traces/swarm:
       receivers: [otlp]
-      exporters: [otlphttp,debug]
-  telemetry:
-    logs:
-      level: "debug"
+      exporters: [otlphttp/swarm-jaeger]
+      processors: [batch,probabilistic_sampler]
+    traces/k8s:
+      receivers: [otlp]
+      exporters: [otlphttp/k8s-signoz]
+      processors: [batch,probabilistic_sampler]
 processors:
   batch:
     timeout: 5s
