@@ -13,6 +13,11 @@ exporters:
     tls:
       insecure: false
       insecure_skip_verify: true
+  otlphttp/k8s-jaeger:
+    endpoint: https://jaeger.monitoring.k8s.osparc.local:443
+    tls:
+      insecure: false
+      insecure_skip_verify: true
 service:
   pipelines:
     traces/swarm:
