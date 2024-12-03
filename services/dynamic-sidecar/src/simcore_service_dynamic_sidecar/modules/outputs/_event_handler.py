@@ -1,5 +1,3 @@
-# pylint:disable=no-member
-
 import logging
 from asyncio import CancelledError, Task, create_task, get_event_loop
 from asyncio import sleep as async_sleep
@@ -51,7 +49,11 @@ class _PortKeysEventHandler(SafeFileSystemEventHandler):
         # NOTE: ignoring all events which are not relative to modifying
         # the contents of the `port_key` folders from the outputs directory
 
-        path_relative_to_outputs = Path(event.src_path).relative_to(self.outputs_path)
+        path_relative_to_outputs = Path(
+            event.src_path.decode()
+            if isinstance(event.src_path, bytes)
+            else event.src_path
+        ).relative_to(self.outputs_path)
 
         # discard event if not part of a subfolder
         relative_path_parents = path_relative_to_outputs.parents
@@ -97,7 +99,7 @@ class _EventHandlerProcess:
             self._process = aioprocessing.AioProcess(
                 target=self._process_worker, daemon=True
             )
-            self._process.start()
+            self._process.start()  # pylint:disable=no-member
 
     def stop_process(self) -> None:
         # NOTE: runs in asyncio thread
@@ -105,12 +107,12 @@ class _EventHandlerProcess:
         with log_context(
             _logger, logging.DEBUG, f"{_EventHandlerProcess.__name__} stop_process"
         ):
-            self._stop_queue.put(None)
+            self._stop_queue.put(None)  # pylint:disable=no-member
 
             if self._process:
                 # force stop the process
-                self._process.kill()
-                self._process.join()
+                self._process.kill()  # pylint:disable=no-member
+                self._process.join()  # pylint:disable=no-member
                 self._process = None
 
             # cleanup whatever remains
@@ -125,8 +127,10 @@ class _EventHandlerProcess:
             self.stop_process()
 
             # signal queue observers to finish
-            self.outputs_context.port_key_events_queue.put(None)
-            self.health_check_queue.put(None)
+            self.outputs_context.port_key_events_queue.put(
+                None
+            )  # pylint:disable=no-member
+            self.health_check_queue.put(None)  # pylint:disable=no-member
 
     def _thread_worker_update_outputs_port_keys(self) -> None:
         # NOTE: runs as a thread in the created process
@@ -135,7 +139,9 @@ class _EventHandlerProcess:
         while True:
             message: dict[
                 str, Any
-            ] | None = self.outputs_context.file_system_event_handler_queue.get()
+            ] | None = (
+                self.outputs_context.file_system_event_handler_queue.get()  # pylint:disable=no-member
+            )
             _logger.debug("received message %s", message)
 
             # no more messages quitting
@@ -175,7 +181,7 @@ class _EventHandlerProcess:
             )
             observer.start()
 
-            while self._stop_queue.qsize() == 0:
+            while self._stop_queue.qsize() == 0:  # pylint:disable=no-member
                 # watchdog internally uses 1 sec interval to detect events
                 # sleeping for less is useless.
                 # If this value is bigger then the DEFAULT_OBSERVER_TIMEOUT
@@ -185,7 +191,9 @@ class _EventHandlerProcess:
                 # time while handling inotify events
                 # the health_check sending could be delayed
 
-                self.health_check_queue.put(_HEART_BEAT_MARK)
+                self.health_check_queue.put(  # pylint:disable=no-member
+                    _HEART_BEAT_MARK
+                )
                 blocking_sleep(self.heart_beat_interval_s)
 
         except Exception:  # pylint: disable=broad-except
@@ -198,7 +206,9 @@ class _EventHandlerProcess:
             observer.stop()
 
             # stop created thread
-            self.outputs_context.file_system_event_handler_queue.put(None)
+            self.outputs_context.file_system_event_handler_queue.put(  # pylint:disable=no-member
+                None
+            )
             thread_update_outputs_port_keys.join()
 
             _logger.warning("%s exited", _EventHandlerProcess.__name__)
@@ -248,7 +258,7 @@ class EventHandlerObserver:
             heart_beat_count = 0
             while True:
                 try:
-                    self._health_check_queue.get_nowait()
+                    self._health_check_queue.get_nowait()  # pylint:disable=no-member
                     heart_beat_count += 1
                 except Empty:
                     break

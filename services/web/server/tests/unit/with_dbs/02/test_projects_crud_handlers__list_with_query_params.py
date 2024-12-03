@@ -7,9 +7,10 @@
 import json
 import random
 from collections import UserDict
+from collections.abc import Iterator
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import pytest
 import sqlalchemy as sa
@@ -153,7 +154,7 @@ async def test_list_projects_with_search_parameter(
     base_url = client.app.router["list_projects"].url_for()
     assert f"{base_url}" == f"/{api_version_prefix}/projects"
 
-    resp = await client.get(base_url)
+    resp = await client.get(f"{base_url}")
     data = await resp.json()
 
     assert resp.status == 200
@@ -164,7 +165,7 @@ async def test_list_projects_with_search_parameter(
     url = base_url.with_query(**query_parameters)
     assert f"{url}" == f"/{api_version_prefix}/projects?search="
 
-    resp = await client.get(url)
+    resp = await client.get(f"{url}")
     data = await resp.json()
 
     assert resp.status == 200
@@ -175,7 +176,7 @@ async def test_list_projects_with_search_parameter(
     url = base_url.with_query(**query_parameters)
     assert f"{url}" == f"/{api_version_prefix}/projects?search=nAmE+5"
 
-    resp = await client.get(url)
+    resp = await client.get(f"{url}")
     data = await resp.json()
 
     assert resp.status == 200
@@ -188,7 +189,7 @@ async def test_list_projects_with_search_parameter(
     url = base_url.with_query(**query_parameters)
     assert f"{url}" == f"/{api_version_prefix}/projects?search=2-fe1b-11ed-b038-cdb1"
 
-    resp = await client.get(url)
+    resp = await client.get(f"{url}")
     data = await resp.json()
 
     assert resp.status == 200
@@ -207,7 +208,7 @@ async def test_list_projects_with_search_parameter(
         == f"/{api_version_prefix}/projects?search={user_name_substring_query_parsed}"
     )
 
-    resp = await client.get(url)
+    resp = await client.get(f"{url}")
     data = await resp.json()
 
     assert resp.status == 200
@@ -225,7 +226,7 @@ async def test_list_projects_with_search_parameter(
     url = base_url.with_query(**query_parameters)
     assert f"{url}" == f"/{api_version_prefix}/projects?search=oda"
 
-    resp = await client.get(url)
+    resp = await client.get(f"{url}")
     data = await resp.json()
 
     assert resp.status == 200
@@ -236,7 +237,7 @@ async def test_list_projects_with_search_parameter(
     url = base_url.with_query(**query_parameters)
     assert f"{url}" == f"/{api_version_prefix}/projects?search=does+not+exists"
 
-    resp = await client.get(url)
+    resp = await client.get(f"{url}")
     data = await resp.json()
 
     assert resp.status == 200
@@ -249,7 +250,7 @@ async def test_list_projects_with_search_parameter(
     url = base_url.with_query(**query_parameters)
     assert f"{url}" == f"/{api_version_prefix}/projects?search=oda&offset=0&limit=1"
 
-    resp = await client.get(url)
+    resp = await client.get(f"{url}")
     data = await resp.json()
 
     assert resp.status == 200
@@ -327,7 +328,7 @@ async def test_list_projects_with_order_by_parameter(
         f"{url}"
         == f"/{api_version_prefix}/projects?order_by=%7B%22field%22:+%22uuid%22,+%22direction%22:+%22asc%22%7D"
     )
-    resp = await client.get(url)
+    resp = await client.get(f"{url}")
     data = await resp.json()
     assert resp.status == 200
     assert [item["uuid"][0] for item in data["data"]] == _alphabetically_ordered_list
@@ -337,7 +338,7 @@ async def test_list_projects_with_order_by_parameter(
     url = base_url.with_query(
         order_by=json.dumps({"field": "uuid", "direction": "desc"})
     )
-    resp = await client.get(url)
+    resp = await client.get(f"{url}")
     data = await resp.json()
     assert resp.status == 200
     assert [item["uuid"][0] for item in data["data"]] == _alphabetically_ordered_list[
@@ -349,7 +350,7 @@ async def test_list_projects_with_order_by_parameter(
     url = base_url.with_query(
         order_by=json.dumps({"field": "name", "direction": "asc"})
     )
-    resp = await client.get(url)
+    resp = await client.get(f"{url}")
     data = await resp.json()
     assert resp.status == 200
     assert [item["name"][0] for item in data["data"]] == _alphabetically_ordered_list
@@ -359,7 +360,7 @@ async def test_list_projects_with_order_by_parameter(
     url = base_url.with_query(
         order_by=json.dumps({"field": "description", "direction": "asc"})
     )
-    resp = await client.get(url)
+    resp = await client.get(f"{url}")
     data = await resp.json()
     assert resp.status == 200
     assert [
@@ -453,7 +454,7 @@ async def test_list_projects_for_specific_folder_id(
     base_url = client.app.router["list_projects"].url_for()
     assert f"{base_url}" == f"/{api_version_prefix}/projects"
 
-    resp = await client.get(base_url)
+    resp = await client.get(f"{base_url}")
     data = await resp.json()
 
     assert resp.status == 200
@@ -463,7 +464,7 @@ async def test_list_projects_for_specific_folder_id(
     query_parameters = {"folder_id": "null"}
     url = base_url.with_query(**query_parameters)
 
-    resp = await client.get(url)
+    resp = await client.get(f"{url}")
     data = await resp.json()
 
     assert resp.status == 200
@@ -476,7 +477,7 @@ async def test_list_projects_for_specific_folder_id(
     url = base_url.with_query(**query_parameters)
     assert f"{url}" == f"/{api_version_prefix}/projects?folder_id={setup_folders_db}"
 
-    resp = await client.get(url)
+    resp = await client.get(f"{url}")
     data = await resp.json()
 
     assert resp.status == 200

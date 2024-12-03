@@ -5,8 +5,8 @@ from typing import Any
 
 import sqlalchemy
 from aiopg.sa.connection import SAConnection
-from pydantic import BaseModel, Field
-from pydantic.errors import PydanticErrorMixin
+from common_library.errors_classes import OsparcErrorMixin
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from .errors import ForeignKeyViolation, UniqueViolation
@@ -17,7 +17,7 @@ from .models.projects_nodes import projects_nodes
 #
 # Errors
 #
-class BaseProjectNodesError(PydanticErrorMixin, RuntimeError):
+class BaseProjectNodesError(OsparcErrorMixin, RuntimeError):
     msg_template: str = "Project nodes unexpected error"
 
 
@@ -43,18 +43,16 @@ class ProjectNodeCreate(BaseModel):
 
     @classmethod
     def get_field_names(cls, *, exclude: set[str]) -> set[str]:
-        return {name for name in cls.__fields__ if name not in exclude}
+        return {name for name in cls.model_fields.keys() if name not in exclude}
 
-    class Config:
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ProjectNode(ProjectNodeCreate):
     created: datetime.datetime
     modified: datetime.datetime
 
-    class Config(ProjectNodeCreate.Config):
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -85,7 +83,7 @@ class ProjectNodesRepo:
                 [
                     {
                         "project_uuid": f"{self.project_uuid}",
-                        **node.dict(),
+                        **node.model_dump(),
                     }
                     for node in nodes
                 ]
@@ -104,7 +102,7 @@ class ProjectNodesRepo:
             assert result  # nosec
             rows = await result.fetchall()
             assert rows is not None  # nosec
-            return [ProjectNode.from_orm(r) for r in rows]
+            return [ProjectNode.model_validate(r) for r in rows]
         except ForeignKeyViolation as exc:
             # this happens when the project does not exist, as we first check the node exists
             raise ProjectNodesProjectNotFoundError(
@@ -130,7 +128,7 @@ class ProjectNodesRepo:
         assert result  # nosec
         rows = await result.fetchall()
         assert rows is not None  # nosec
-        return [ProjectNode.from_orm(row) for row in rows]
+        return [ProjectNode.model_validate(row) for row in rows]
 
     async def get(self, connection: SAConnection, *, node_id: uuid.UUID) -> ProjectNode:
         """get a node in the current project
@@ -156,7 +154,7 @@ class ProjectNodesRepo:
                 project_uuid=self.project_uuid, node_id=node_id
             )
         assert row  # nosec
-        return ProjectNode.from_orm(row)
+        return ProjectNode.model_validate(row)
 
     async def update(
         self, connection: SAConnection, *, node_id: uuid.UUID, **values
@@ -186,7 +184,7 @@ class ProjectNodesRepo:
                 project_uuid=self.project_uuid, node_id=node_id
             )
         assert row  # nosec
-        return ProjectNode.from_orm(row)
+        return ProjectNode.model_validate(row)
 
     async def delete(self, connection: SAConnection, *, node_id: uuid.UUID) -> None:
         """delete a node in the current project

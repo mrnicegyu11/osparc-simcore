@@ -42,7 +42,7 @@ async function runTutorial () {
     await utils.takeScreenshot(page, screenshotPrefix + 'service_started');
 
     // Some time for setting up service's frontend
-    await tutorial.waitFor(3000);
+    await tutorial.waitFor(10000);
 
     const frame = await tutorial.getIframe(nodeIdViewer);
 
@@ -60,7 +60,7 @@ async function runTutorial () {
     await utils.takeScreenshot(page, screenshotPrefix + 'teapot');
   }
   catch(err) {
-    await tutorial.setTutorialFailed(true);
+    await tutorial.setTutorialFailed();
     console.log('Tutorial error: ' + err);
   }
   finally {

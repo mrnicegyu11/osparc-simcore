@@ -49,20 +49,13 @@ tests-ci: ## runs unit tests [ci-mode]
     -m "not heavy_load" \
 		$(CURDIR)/tests
 
-.PHONY: project-jsonschema.ignore.json
-project-jsonschema.ignore.json: ## creates project-v0.0.1.json for DEV purposes
-	python3 -c "from models_library.projects import Project; print(Project.schema_json(indent=2))" > $@
-
-.PHONY: service-jsonschema.ignore.json
-node-meta-jsonschema.ignore.json: ## creates node-meta-v0.0.1.json for DEV purposes
-	python3 -c "from models_library.services import ServiceDockerData as cls; print(cls.schema_json(indent=2))" > $@
 
 DOCKER_API_VERSION ?= 1.41
 .PHONY: docker_rest_api.py
 docker_rest_api.py: ## auto-generates pydantic models for Docker REST API models
 	# auto-generates $@ from $<
 	@$(SCRIPTS_DIR)/openapi-pydantic-models-generator.bash \
-			--url https://docs.docker.com/engine/api/v$(DOCKER_API_VERSION).yaml \
+			--url https://docs.docker.com/reference/api/engine/version/v$(DOCKER_API_VERSION).yaml \
 			--output $@
 
 	# formats

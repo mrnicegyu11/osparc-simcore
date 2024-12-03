@@ -95,7 +95,7 @@ qx.Class.define("osparc.dashboard.ResourceBrowserBase", {
       return isLogged;
     },
 
-    startStudyById: function(studyId, openCB, cancelCB, isStudyCreation = false) {
+    startStudyById: function(studyId, openCB, cancelCB, showStudyOptions = false) {
       if (!osparc.dashboard.ResourceBrowserBase.checkLoggedIn()) {
         return;
       }
@@ -116,7 +116,11 @@ qx.Class.define("osparc.dashboard.ResourceBrowserBase", {
         };
         osparc.data.Resources.fetch("studies", "getWallet", params)
           .then(wallet => {
-            if (isStudyCreation || wallet === null || osparc.desktop.credits.Utils.getWallet(wallet["walletId"]) === null) {
+            if (
+              showStudyOptions ||
+              wallet === null ||
+              osparc.desktop.credits.Utils.getWallet(wallet["walletId"]) === null
+            ) {
               // pop up study options if the study was just created or if it has no wallet assigned or user has no access to it
               const resourceSelector = new osparc.study.StudyOptions(studyId);
               const win = osparc.study.StudyOptions.popUpInWindow(resourceSelector);
@@ -191,7 +195,6 @@ qx.Class.define("osparc.dashboard.ResourceBrowserBase", {
     __centerLayout: null,
     _resourceType: null,
     _resourcesList: null,
-    _topBar: null,
     _toolbar: null,
     _searchBarFilter: null,
     __viewModeLayout: null,
@@ -241,7 +244,7 @@ qx.Class.define("osparc.dashboard.ResourceBrowserBase", {
       this._addToLayout(searchBarFilter);
     },
 
-    _createResourcesLayout: function() {
+    _createResourcesLayout: function(flatListId) {
       const toolbar = this._toolbar = new qx.ui.toolbar.ToolBar().set({
         backgroundColor: "transparent",
         spacing: 10,
@@ -252,7 +255,13 @@ qx.Class.define("osparc.dashboard.ResourceBrowserBase", {
 
       this.__viewModeLayout = new qx.ui.toolbar.Part();
 
-      const resourcesContainer = this._resourcesContainer = new osparc.dashboard.ResourceContainerManager();
+      const resourcesContainer = this._resourcesContainer = new osparc.dashboard.ResourceContainerManager(this._resourceType);
+      if (flatListId) {
+        const list = this._resourcesContainer.getFlatList();
+        if (list) {
+          osparc.utils.Utils.setIdToWidget(list, flatListId);
+        }
+      }
       if (this._resourceType === "study") {
         const viewMode = osparc.utils.Utils.localCache.getLocalStorageItem("studiesViewMode");
         if (viewMode) {
@@ -267,6 +276,8 @@ qx.Class.define("osparc.dashboard.ResourceBrowserBase", {
       resourcesContainer.addListener("emptyStudyClicked", e => this._deleteResourceRequested(e.getData()));
       resourcesContainer.addListener("folderUpdated", e => this._folderUpdated(e.getData()));
       resourcesContainer.addListener("moveFolderToRequested", e => this._moveFolderToRequested(e.getData()));
+      resourcesContainer.addListener("trashFolderRequested", e => this._trashFolderRequested(e.getData()));
+      resourcesContainer.addListener("untrashFolderRequested", e => this._untrashFolderRequested(e.getData()));
       resourcesContainer.addListener("deleteFolderRequested", e => this._deleteFolderRequested(e.getData()));
       resourcesContainer.addListener("folderSelected", e => {
         const folderId = e.getData();
@@ -276,7 +287,17 @@ qx.Class.define("osparc.dashboard.ResourceBrowserBase", {
         const workspaceId = e.getData();
         this._workspaceSelected(workspaceId);
       }, this);
+      resourcesContainer.addListener("changeContext", e => {
+        const {
+          context,
+          workspaceId,
+          folderId,
+        } = e.getData();
+        this._changeContext(context, workspaceId, folderId);
+      }, this);
       resourcesContainer.addListener("workspaceUpdated", e => this._workspaceUpdated(e.getData()));
+      resourcesContainer.addListener("trashWorkspaceRequested", e => this._trashWorkspaceRequested(e.getData()));
+      resourcesContainer.addListener("untrashWorkspaceRequested", e => this._untrashWorkspaceRequested(e.getData()));
       resourcesContainer.addListener("deleteWorkspaceRequested", e => this._deleteWorkspaceRequested(e.getData()));
 
       this._addToLayout(resourcesContainer);
@@ -475,6 +496,10 @@ qx.Class.define("osparc.dashboard.ResourceBrowserBase", {
       throw new Error("Abstract method called!");
     },
 
+    _changeContext: function(context, workspaceId, folderId) {
+      throw new Error("Abstract method called!");
+    },
+
     _folderSelected: function(folderId) {
       throw new Error("Abstract method called!");
     },
@@ -484,6 +509,14 @@ qx.Class.define("osparc.dashboard.ResourceBrowserBase", {
     },
 
     _moveFolderToRequested: function(folderId) {
+      throw new Error("Abstract method called!");
+    },
+
+    _trashFolderRequested: function(folderId) {
+      throw new Error("Abstract method called!");
+    },
+
+    _untrashFolderRequested: function(folder) {
       throw new Error("Abstract method called!");
     },
 

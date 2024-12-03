@@ -78,7 +78,16 @@ qx.Class.define("osparc.data.model.Workbench", {
 
   statics: {
     CANT_ADD_NODE: qx.locale.Manager.tr("Nodes can't be added while the pipeline is running"),
-    CANT_DELETE_NODE: qx.locale.Manager.tr("Nodes can't be deleted while the pipeline is running")
+    CANT_DELETE_NODE: qx.locale.Manager.tr("Nodes can't be deleted while the pipeline is running"),
+
+    getLinkedNodeIds: function(workbenchData) {
+      const linkedNodeIDs = new Set([]);
+      Object.values(workbenchData).forEach(nodeData => {
+        const linkedNodes = osparc.data.model.Node.getLinkedNodeIds(nodeData);
+        linkedNodes.forEach(linkedNodeID => linkedNodeIDs.add(linkedNodeID))
+      });
+      return Array.from(linkedNodeIDs);
+    },
   },
 
   members: {
@@ -788,7 +797,10 @@ qx.Class.define("osparc.data.model.Workbench", {
         } else {
           // patch only what was changed
           Object.keys(workbenchDiffs[nodeId]).forEach(changedFieldKey => {
-            patchData[changedFieldKey] = nodeData[changedFieldKey];
+            if (nodeData[changedFieldKey] !== undefined) {
+              // do not patch if it's undefined
+              patchData[changedFieldKey] = nodeData[changedFieldKey];
+            }
           });
         }
         const params = {
@@ -798,7 +810,9 @@ qx.Class.define("osparc.data.model.Workbench", {
           },
           data: patchData
         };
-        promises.push(osparc.data.Resources.fetch("studies", "patchNode", params));
+        if (Object.keys(patchData).length) {
+          promises.push(osparc.data.Resources.fetch("studies", "patchNode", params));
+        }
       })
       return Promise.all(promises);
     }

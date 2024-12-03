@@ -173,9 +173,10 @@ async def service_save_state(
         size = await sidecars_client.save_service_state(
             scheduler_data.endpoint, progress_callback=progress_callback
         )
-    get_instrumentation(app).dynamic_sidecar_metrics.push_service_state_rate.labels(
-        **get_metrics_labels(scheduler_data)
-    ).observe(get_rate(size, duration.to_flaot()))
+    if size and size > 0:
+        get_instrumentation(app).dynamic_sidecar_metrics.push_service_state_rate.labels(
+            **get_metrics_labels(scheduler_data)
+        ).observe(get_rate(size, duration.to_float()))
 
     await sidecars_client.update_volume_state(
         scheduler_data.endpoint,
@@ -479,10 +480,14 @@ async def prepare_services_environment(
             size: int = await sidecars_client.pull_service_output_ports(
                 dynamic_sidecar_endpoint
             )
-
-        get_instrumentation(app).dynamic_sidecar_metrics.output_ports_pull_rate.labels(
-            **get_metrics_labels(scheduler_data)
-        ).observe(get_rate(size, duration.to_flaot()))
+        if size and size > 0:
+            get_instrumentation(
+                app
+            ).dynamic_sidecar_metrics.output_ports_pull_rate.labels(
+                **get_metrics_labels(scheduler_data)
+            ).observe(
+                get_rate(size, duration.to_float())
+            )
 
     async def _pull_user_services_images_with_metrics() -> None:
         with track_duration() as duration:
@@ -493,16 +498,21 @@ async def prepare_services_environment(
         ).dynamic_sidecar_metrics.pull_user_services_images_duration.labels(
             **get_metrics_labels(scheduler_data)
         ).observe(
-            duration.to_flaot()
+            duration.to_float()
         )
 
     async def _restore_service_state_with_metrics() -> None:
         with track_duration() as duration:
             size = await sidecars_client.restore_service_state(dynamic_sidecar_endpoint)
 
-        get_instrumentation(app).dynamic_sidecar_metrics.pull_service_state_rate.labels(
-            **get_metrics_labels(scheduler_data)
-        ).observe(get_rate(size, duration.to_flaot()))
+        if size and size > 0:
+            get_instrumentation(
+                app
+            ).dynamic_sidecar_metrics.pull_service_state_rate.labels(
+                **get_metrics_labels(scheduler_data)
+            ).observe(
+                get_rate(size, duration.to_float())
+            )
 
     tasks = [
         _pull_user_services_images_with_metrics(),
@@ -525,7 +535,7 @@ async def prepare_services_environment(
         )
     )
     service_outputs_labels = json.loads(
-        simcore_service_labels.dict().get("io.simcore.outputs", "{}")
+        simcore_service_labels.model_dump().get("io.simcore.outputs", "{}")
     ).get("outputs", {})
     _logger.debug(
         "Creating dirs from service outputs labels: %s",
@@ -553,7 +563,7 @@ async def get_allow_metrics_collection(
             bool, AllowMetricsCollectionFrontendUserPreference.get_default_value()
         )
 
-    allow_metrics_collection = AllowMetricsCollectionFrontendUserPreference.parse_obj(
-        preference
+    allow_metrics_collection = (
+        AllowMetricsCollectionFrontendUserPreference.model_validate(preference)
     )
     return allow_metrics_collection.value

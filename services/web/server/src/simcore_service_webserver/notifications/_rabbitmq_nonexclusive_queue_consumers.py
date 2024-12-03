@@ -23,12 +23,12 @@ _APP_RABBITMQ_CONSUMERS_KEY: Final[str] = f"{__name__}.rabbit_consumers"
 
 
 async def _instrumentation_message_parser(app: web.Application, data: bytes) -> bool:
-    rabbit_message = InstrumentationRabbitMessage.parse_raw(data)
+    rabbit_message = InstrumentationRabbitMessage.model_validate_json(data)
     if rabbit_message.metrics == "service_started":
         service_started(
             app,
             **{
-                key: rabbit_message.dict()[key]
+                key: rabbit_message.model_dump()[key]
                 for key in MONITOR_SERVICE_STARTED_LABELS
             },
         )
@@ -36,7 +36,7 @@ async def _instrumentation_message_parser(app: web.Application, data: bytes) -> 
         service_stopped(
             app,
             **{
-                key: rabbit_message.dict()[key]
+                key: rabbit_message.model_dump()[key]
                 for key in MONITOR_SERVICE_STOPPED_LABELS
             },
         )
@@ -59,8 +59,8 @@ async def _unsubscribe_from_rabbitmq(app) -> None:
         rabbit_client: RabbitMQClient = get_rabbitmq_client(app)
         await logged_gather(
             *(
-                rabbit_client.unsubscribe_consumer(queue_name)
-                for queue_name in app[_APP_RABBITMQ_CONSUMERS_KEY].values()
+                rabbit_client.unsubscribe_consumer(*queue_consumer_map)
+                for queue_consumer_map in app[_APP_RABBITMQ_CONSUMERS_KEY].values()
             ),
         )
 

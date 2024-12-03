@@ -10,12 +10,11 @@ qx.Class.define("osparc.desktop.credits.BuyCreditsStepper", {
   construct(paymentMethods) {
     this.base(arguments);
     this.__paymentMethods = paymentMethods;
+    const groupsStore = osparc.store.Groups.getInstance();
+    const myGid = groupsStore.getMyGroupId()
     const store = osparc.store.Store.getInstance();
-    store.getGroupsMe()
-      .then(personalGroup => {
-        this.__personalWallet = store.getWallets().find(wallet => wallet.getOwner() === personalGroup.gid)
-        this.__buildLayout()
-      });
+    this.__personalWallet = store.getWallets().find(wallet => wallet.getOwner() === myGid)
+    this.__buildLayout()
   },
   events: {
     "completed": "qx.event.type.Event"
@@ -32,7 +31,10 @@ qx.Class.define("osparc.desktop.credits.BuyCreditsStepper", {
       this.removeAll();
       this.__form = new osparc.desktop.credits.BuyCreditsForm(this.__paymentMethods);
       this.__form.addListener("submit", e => {
-        const { amountDollars: priceDollars, osparcCredits, paymentMethodId } = e.getData();
+        const {
+          amountDollars: priceDollars,
+          osparcCredits, paymentMethodId
+        } = e.getData();
         const params = {
           url: {
             walletId: this.__personalWallet.getWalletId()

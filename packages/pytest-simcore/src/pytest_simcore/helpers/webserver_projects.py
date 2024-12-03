@@ -78,9 +78,9 @@ async def create_project(
         project_nodes={
             NodeID(node_id): ProjectNodeCreate(
                 node_id=NodeID(node_id),
-                required_resources=ServiceResourcesDictHelpers.Config.schema_extra[
-                    "examples"
-                ][0],
+                required_resources=ServiceResourcesDictHelpers.model_config[
+                    "json_schema_extra"
+                ]["examples"][0],
             )
             for node_id in project_data.get("workbench", {})
         },
@@ -186,5 +186,5 @@ async def assert_get_same_project(
     data, error = await assert_status(resp, expected)
 
     if not error:
-        assert data == project
+        assert data == {k: project[k] for k in data}
     return data

@@ -9,10 +9,13 @@ export LOCUST_VERSION
 ENV_FILE=$(shell pwd)/.env
 export ENV_FILE
 
+KERNEL_NAME=$(shell uname -s)
+
 NETWORK_NAME=dashboards_timenet
 
 # UTILS
-get_my_ip := $(shell (hostname --all-ip-addresses || hostname -i) 2>/dev/null | cut --delimiter=" " --fields=1)
+# NOTE: keep short arguments for `cut` so it works in both BusyBox (alpine) AND Ubuntu
+get_my_ip := $(shell (hostname --all-ip-addresses || hostname -i) 2>/dev/null | cut -d " " -f 1)
 
 # Check that given variables are set and all have non-empty values,
 # die with an error otherwise.
@@ -26,6 +29,7 @@ check_defined = \
 __check_defined = \
     $(if $(value $1),, \
       $(error Undefined $1$(if $2, ($2))))
+
 
 
 .PHONY: build
@@ -42,18 +46,17 @@ build: ## builds distributed osparc locust docker image
 push:
 	docker push itisfoundation/locust:$(LOCUST_VERSION)
 
-.PHONY: down
-down: ## stops and removes osparc locust containers
-	docker compose --file docker-compose.yml down
-
-.PHONY: test
-test: ## runs osparc locust. Locust and test configuration are specified in ENV_FILE
+.PHONY: test-up test-down
+test-up: ## runs osparc locust. Locust and test configuration are specified in ENV_FILE
 	@if [ ! -f $${ENV_FILE} ]; then echo "You must generate a .env file before running tests!!! See the README..." && exit 1; fi;
 	@if ! docker network ls | grep -q $(NETWORK_NAME); then \
 		docker network create $(NETWORK_NAME); \
 		echo "Created docker network $(NETWORK_NAME)"; \
 	fi
 	docker compose --file docker-compose.yml up --scale worker=4 --exit-code-from=master
+
+test-down: ## stops and removes osparc locust containers
+	@docker compose --file docker-compose.yml down
 
 .PHONY: dashboards-up dashboards-down
 
@@ -63,9 +66,13 @@ dashboards-up: ## Create Grafana dashboard for inspecting locust results. See da
 		docker network rm $(NETWORK_NAME); \
 		echo "Removed docker network $(NETWORK_NAME)"; \
 	fi
+	@if [[ "$(KERNEL_NAME)" == "Linux" ]]; then \
+		( sleep 3 && xdg-open http://localhost:3000 ) & \
+	fi
 	@locust-compose up
 
-dashboards-down:
+
+dashboards-down: ## stops and removes Grafana dashboard and Timescale postgress containers
 	@locust-compose down
 
 .PHONY: install-ci install-dev
@@ -78,6 +85,6 @@ install-ci:
 
 
 .PHONY: config
-config:
+config: ## Create config for your locust tests
 	@$(call check_defined, input, please define inputs when calling $@ - e.g. ```make $@ input="--help"```)
-	@uv run locust_settings.py $(input) | tee .env
+	@uv run locust_settings.py $(input) | tee "${ENV_FILE}"

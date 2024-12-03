@@ -1,4 +1,4 @@
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 
 from .generated_models.docker_rest_api import (
     ContainerSpec,
@@ -7,16 +7,16 @@ from .generated_models.docker_rest_api import (
     ServiceSpec,
     TaskSpec,
 )
-from .utils.change_case import camel_to_snake
 
 
 class AioDockerContainerSpec(ContainerSpec):
-    Env: dict[str, str | None] | None = Field(  # type: ignore
+    env: dict[str, str | None] | None = Field(  # type: ignore[assignment]
         default=None,
-        description="aiodocker expects here a dictionary and re-convert it back internally`.\n",
+        alias="Env",
+        description="aiodocker expects here a dictionary and re-convert it back internally",
     )
 
-    @validator("Env", pre=True)
+    @field_validator("env", mode="before")
     @classmethod
     def convert_list_to_dict(cls, v):
         if v is not None and isinstance(v, list):
@@ -33,28 +33,18 @@ class AioDockerContainerSpec(ContainerSpec):
 class AioDockerResources1(Resources1):
     # NOTE: The Docker REST API documentation is wrong!!!
     # Do not set that back to singular Reservation.
-    Reservation: ResourceObject | None = Field(
+    reservation: ResourceObject | None = Field(
         None, description="Define resources reservation.", alias="Reservations"
     )
 
-    class Config(Resources1.Config):  # type: ignore
-        allow_population_by_field_name = True
-
 
 class AioDockerTaskSpec(TaskSpec):
-    ContainerSpec: AioDockerContainerSpec | None = Field(
-        None,
+    container_spec: AioDockerContainerSpec | None = Field(
+        default=None, alias="ContainerSpec"
     )
 
-    Resources: AioDockerResources1 | None = Field(
-        None,
-        description="Resource requirements which apply to each individual container created\nas part of the service.\n",
-    )
+    resources: AioDockerResources1 | None = Field(default=None, alias="Resources")
 
 
 class AioDockerServiceSpec(ServiceSpec):
-    TaskTemplate: AioDockerTaskSpec | None = None
-
-    class Config(ServiceSpec.Config):  # type: ignore
-        alias_generator = camel_to_snake
-        allow_population_by_field_name = True
+    task_template: AioDockerTaskSpec | None = Field(default=None, alias="TaskTemplate")

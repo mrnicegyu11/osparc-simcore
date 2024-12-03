@@ -80,27 +80,35 @@ qx.Class.define("osparc.ui.list.ListItemWithMenu", {
         return;
       }
 
+      this._setRole();
+
       this._getInfoButton();
 
       this.__applyOptions();
     },
 
-    _setSubtitle: function() {
+    _setRole: function() {
       const accessRights = this.getAccessRights();
-      const subtitle = this.getChildControl("contact");
+      const role = this.getChildControl("role");
       if (
-        "getDelete" in accessRights && accessRights.getDelete()
+        "getDelete" in accessRights && accessRights.getDelete() ||
+        "delete" in accessRights && accessRights["delete"]
       ) {
-        subtitle.setValue(osparc.data.Roles.ORG[3].label);
-      } else if ("getWrite" in accessRights && accessRights.getWrite()) {
-        subtitle.setValue(osparc.data.Roles.ORG[2].label);
+        role.setValue(osparc.data.Roles.ORG[3].label);
+      } else if (
+        "getWrite" in accessRights && accessRights.getWrite() ||
+        "write" in accessRights && accessRights["write"]
+      ) {
+        role.setValue(osparc.data.Roles.ORG[2].label);
       } else if (
         ("getRead" in accessRights && accessRights.getRead()) ||
-        ("getExecute" in accessRights && accessRights.getExecute())
+        ("getExecute" in accessRights && accessRights.getExecute()) ||
+        ("read" in accessRights && accessRights["read"]) ||
+        ("execute" in accessRights && accessRights["execute"])
       ) {
-        subtitle.setValue(osparc.data.Roles.ORG[1].label);
+        role.setValue(osparc.data.Roles.ORG[1].label);
       } else {
-        subtitle.setValue(osparc.data.Roles.ORG[0].label);
+        role.setValue(osparc.data.Roles.ORG[0].label);
       }
     },
 

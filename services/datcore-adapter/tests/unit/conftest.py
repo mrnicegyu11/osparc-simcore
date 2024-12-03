@@ -3,8 +3,9 @@
 # pylint:disable=redefined-outer-name
 
 import json
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable
+from typing import Any
 from uuid import uuid4
 
 import faker
@@ -15,6 +16,7 @@ import simcore_service_datcore_adapter
 from asgi_lifespan import LifespanManager
 from fastapi.applications import FastAPI
 from pytest_mock import MockFixture
+from pytest_simcore.helpers.monkeypatch_envs import EnvVarsDict, setenvs_from_dict
 from simcore_service_datcore_adapter.modules.pennsieve import (
     PennsieveAuthorizationHeaders,
 )
@@ -22,6 +24,7 @@ from starlette import status
 from starlette.testclient import TestClient
 
 pytest_plugins = [
+    "pytest_simcore.environment_configs",
     "pytest_simcore.repository_paths",
     "pytest_simcore.pytest_global_environs",
 ]
@@ -61,7 +64,9 @@ def pennsieve_mock_dataset_packages(mocks_dir: Path) -> dict[str, Any]:
 
 
 @pytest.fixture()
-def minimal_app() -> FastAPI:
+def minimal_app(
+    app_envs: None,
+) -> FastAPI:
     from simcore_service_datcore_adapter.main import the_app
 
     return the_app
@@ -74,9 +79,16 @@ def client(minimal_app: FastAPI) -> TestClient:
 
 
 @pytest.fixture
-def app_envs(monkeypatch: pytest.MonkeyPatch):
-    # disable tracing as together with LifespanManager, it does not remove itself nicely
-    ...
+def app_envs(
+    mock_env_devel_environment: EnvVarsDict, monkeypatch: pytest.MonkeyPatch
+) -> EnvVarsDict:
+    return setenvs_from_dict(
+        monkeypatch,
+        {
+            **mock_env_devel_environment,
+            "DATCORE_ADAPTER_TRACING": "null",
+        },
+    )
 
 
 @pytest.fixture()
@@ -87,7 +99,7 @@ async def initialized_app(
         yield minimal_app
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 async def async_client(initialized_app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
     async with httpx.AsyncClient(
         app=initialized_app,
@@ -215,14 +227,13 @@ def pennsieve_api_headers(
 def pennsieve_random_fake_datasets(
     create_pennsieve_fake_dataset_id: Callable,
 ) -> dict[str, Any]:
-    datasets = {
+    return {
         "datasets": [
             {"content": {"id": create_pennsieve_fake_dataset_id(), "name": fake.text()}}
             for _ in range(10)
         ],
         "totalCount": 20,
     }
-    return datasets
 
 
 @pytest.fixture

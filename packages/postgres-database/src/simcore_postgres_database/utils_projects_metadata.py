@@ -5,8 +5,8 @@ from typing import Any
 import sqlalchemy as sa
 from aiopg.sa.connection import SAConnection
 from aiopg.sa.result import ResultProxy, RowProxy
-from pydantic import BaseModel
-from pydantic.errors import PydanticErrorMixin
+from common_library.errors_classes import OsparcErrorMixin
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from .errors import ForeignKeyViolation
@@ -18,7 +18,7 @@ from .models.projects_metadata import projects_metadata
 #
 
 
-class BaseProjectsMetadataError(PydanticErrorMixin, RuntimeError):
+class BaseProjectsMetadataError(OsparcErrorMixin, RuntimeError):
     msg_template: str = "Project metadata unexpected error"
 
 
@@ -53,10 +53,7 @@ class ProjectMetadata(BaseModel):
     parent_node_id: uuid.UUID | None
     root_parent_project_uuid: uuid.UUID | None
     root_parent_node_id: uuid.UUID | None
-
-    class Config:
-        frozen = True
-        orm_mode = True
+    model_config = ConfigDict(frozen=True, from_attributes=True)
 
 
 #
@@ -96,7 +93,7 @@ async def get(connection: SAConnection, project_uuid: uuid.UUID) -> ProjectMetad
     row: RowProxy | None = await result.first()
     if row is None:
         raise DBProjectNotFoundError(project_uuid=project_uuid)
-    return ProjectMetadata.from_orm(row)
+    return ProjectMetadata.model_validate(row)
 
 
 def _check_valid_ancestors_combination(
@@ -205,7 +202,7 @@ async def set_project_ancestors(
         result: ResultProxy = await connection.execute(upsert_stmt)
         row: RowProxy | None = await result.first()
         assert row  # nosec
-        return ProjectMetadata.from_orm(row)
+        return ProjectMetadata.model_validate(row)
 
     except ForeignKeyViolation as err:
         assert err.pgerror is not None  # nosec  # noqa: PT017
@@ -237,7 +234,7 @@ async def set_project_custom_metadata(
         result: ResultProxy = await connection.execute(upsert_stmt)
         row: RowProxy | None = await result.first()
         assert row  # nosec
-        return ProjectMetadata.from_orm(row)
+        return ProjectMetadata.model_validate(row)
 
     except ForeignKeyViolation as err:
         raise DBProjectNotFoundError(project_uuid=project_uuid) from err

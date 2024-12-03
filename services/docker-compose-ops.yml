@@ -111,6 +111,7 @@ services:
       - "4318:4318"  # OTLP HTTP receiver
     networks:
       - simcore_default
+      - interactive_services_subnet
     extra_hosts:
       - "opentelemetrycollector.signoz.monitoring.k8s.osparc.local:172.17.0.1"
       - "jaeger.monitoring.k8s.osparc.local:172.17.0.1"

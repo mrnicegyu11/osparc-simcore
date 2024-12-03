@@ -44,7 +44,11 @@ qx.Class.define("osparc.store.Services", {
 
             resolve(servicesObj);
           })
-          .catch(err => console.error("getServices failed", err));
+          .catch(err => {
+            const msg = err.message || qx.locale.Manager.tr("Unable to fetch Services");
+            osparc.FlashMessenger.getInstance().logAs(msg, "ERROR");
+            console.error(err);
+          });
       });
     },
 
@@ -59,7 +63,7 @@ qx.Class.define("osparc.store.Services", {
               let serviceLatest = servicesLatest[key];
               if (excludeFrontend && key.includes("simcore/services/frontend/")) {
                 // do not add frontend services
-                return;
+                continue;
               }
               if (excludeDeprecated && serviceLatest["retired"]) {
                 // first check if a previous version of this service isn't retired
@@ -68,13 +72,14 @@ qx.Class.define("osparc.store.Services", {
                 for (let j=0; j<versions.length; j++) {
                   const version = versions[j];
                   if (!this.servicesCached[key][version]["retired"]) {
+                    // one older non retired version found
                     serviceLatest = await this.getService(key, version);
                     break;
                   }
                 }
                 if (serviceLatest["retired"]) {
                   // do not add retired services
-                  return;
+                  continue;
                 }
               }
               servicesList.push(serviceLatest);

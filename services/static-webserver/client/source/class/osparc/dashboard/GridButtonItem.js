@@ -188,8 +188,7 @@ qx.Class.define("osparc.dashboard.GridButtonItem", {
     },
 
     __itemSelected: function() {
-      // It could be blocked by IN_USE or UNKNOWN_SERVICE
-      if (this.getBlocked() === true) {
+      if (this.isItemNotClickable()) {
         this.setValue(false);
         return;
       }
@@ -262,7 +261,7 @@ qx.Class.define("osparc.dashboard.GridButtonItem", {
         tagsContainer.setVisibility(tags.length ? "visible" : "excluded");
         tagsContainer.removeAll();
         tags.forEach(tag => {
-          const tagUI = new osparc.ui.basic.Tag(tag.name, tag.color, "searchBarFilter");
+          const tagUI = new osparc.ui.basic.Tag(tag, "searchBarFilter");
           tagUI.set({
             font: "text-12",
             toolTipText: this.tr("Click to filter by this Tag")

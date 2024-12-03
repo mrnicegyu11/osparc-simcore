@@ -13,7 +13,7 @@ from models_library.rabbitmq_messages import (
 )
 from models_library.socketio import SocketMessageDict
 from models_library.users import GroupID
-from pydantic import parse_raw_as
+from pydantic import TypeAdapter
 from servicelib.logging_utils import log_catch, log_context
 from servicelib.rabbitmq import RabbitMQClient
 from servicelib.utils import logged_gather
@@ -58,17 +58,17 @@ async def _convert_to_node_update_event(
                     "data": project["workbench"][f"{message.node_id}"],
                 },
             )
-        _logger.warning("node not found: '%s'", message.dict())
+        _logger.warning("node not found: '%s'", message.model_dump())
     except ProjectNotFoundError:
-        _logger.warning("project not found: '%s'", message.dict())
+        _logger.warning("project not found: '%s'", message.model_dump())
     return None
 
 
 async def _progress_message_parser(app: web.Application, data: bytes) -> bool:
-    rabbit_message: (
-        ProgressRabbitMessageNode | ProgressRabbitMessageProject
-    ) = parse_raw_as(
-        ProgressRabbitMessageNode | ProgressRabbitMessageProject, data  # type: ignore[arg-type] # from pydantic v2 --> https://github.com/pydantic/pydantic/discussions/4950
+    rabbit_message: ProgressRabbitMessageNode | ProgressRabbitMessageProject = (
+        TypeAdapter(
+            ProgressRabbitMessageNode | ProgressRabbitMessageProject
+        ).validate_json(data)
     )
     message: SocketMessageDict | None = None
     if isinstance(rabbit_message, ProgressRabbitMessageProject):
@@ -95,13 +95,13 @@ async def _progress_message_parser(app: web.Application, data: bytes) -> bool:
 
 
 async def _log_message_parser(app: web.Application, data: bytes) -> bool:
-    rabbit_message = LoggerRabbitMessage.parse_raw(data)
+    rabbit_message = LoggerRabbitMessage.model_validate_json(data)
     await send_message_to_user(
         app,
         rabbit_message.user_id,
         message=SocketMessageDict(
             event_type=SOCKET_IO_LOG_EVENT,
-            data=rabbit_message.dict(exclude={"user_id", "channel_name"}),
+            data=rabbit_message.model_dump(exclude={"user_id", "channel_name"}),
         ),
         ignore_queue=True,
     )
@@ -109,7 +109,7 @@ async def _log_message_parser(app: web.Application, data: bytes) -> bool:
 
 
 async def _events_message_parser(app: web.Application, data: bytes) -> bool:
-    rabbit_message = EventRabbitMessage.parse_raw(data)
+    rabbit_message = EventRabbitMessage.model_validate_json(data)
     await send_message_to_user(
         app,
         rabbit_message.user_id,
@@ -126,7 +126,7 @@ async def _events_message_parser(app: web.Application, data: bytes) -> bool:
 
 
 async def _osparc_credits_message_parser(app: web.Application, data: bytes) -> bool:
-    rabbit_message = parse_raw_as(WalletCreditsMessage, data)
+    rabbit_message = TypeAdapter(WalletCreditsMessage).validate_json(data)
     wallet_groups = await wallets_api.list_wallet_groups_with_read_access_by_wallet(
         app, wallet_id=rabbit_message.wallet_id
     )
@@ -181,7 +181,7 @@ async def _unsubscribe_from_rabbitmq(app) -> None:
         await logged_gather(
             *(
                 rabbit_client.unsubscribe(queue_name)
-                for queue_name in app[_APP_RABBITMQ_CONSUMERS_KEY].values()
+                for queue_name, _ in app[_APP_RABBITMQ_CONSUMERS_KEY].values()
             ),
         )
 

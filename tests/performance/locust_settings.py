@@ -1,10 +1,26 @@
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "faker",
+#     "locust",
+#     "locust-plugins",
+#     "parse",
+#     "pydantic",
+#     "pydantic-settings",
+#     "tenacity"
+# ]
+# ///
 # pylint: disable=unused-argument
 # pylint: disable=no-self-use
 # pylint: disable=no-name-in-module
 
+import importlib.util
+import inspect
 import json
+import sys
 from datetime import timedelta
 from pathlib import Path
+from types import ModuleType
 from typing import Final
 
 from parse import Result, parse
@@ -26,8 +42,35 @@ assert _TEST_DIR.is_dir()
 assert _LOCUST_FILES_DIR.is_dir()
 
 
+def _get_settings_classes(file_path: Path) -> list[type[BaseSettings]]:
+    assert file_path.is_file()
+    module_name = file_path.stem
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    if spec is None or spec.loader is None:
+        msg = f"Invalid {file_path=}"
+        raise ValueError(msg)
+
+    module: ModuleType = importlib.util.module_from_spec(spec)
+
+    # Execute the module in its own namespace
+    try:
+        spec.loader.exec_module(module)
+    except Exception as e:
+        msg = f"Failed to load module {module_name} from {file_path}"
+        raise ValueError(msg) from e
+
+    # Filter subclasses of BaseSettings
+    settings_classes = [
+        obj
+        for _, obj in inspect.getmembers(module, inspect.isclass)
+        if issubclass(obj, BaseSettings) and obj is not BaseSettings
+    ]
+
+    return settings_classes
+
+
 class LocustSettings(BaseSettings):
-    model_config = SettingsConfigDict(cli_parse_args=True)
+    model_config = SettingsConfigDict(cli_parse_args=True, cli_ignore_unknown_args=True)
 
     LOCUST_CHECK_AVG_RESPONSE_TIME: PositiveInt = Field(default=200)
     LOCUST_CHECK_FAIL_RATIO: PositiveFloat = Field(default=0.01, ge=0.0, le=1.0)
@@ -44,8 +87,8 @@ class LocustSettings(BaseSettings):
     LOCUST_RUN_TIME: timedelta
     LOCUST_SPAWN_RATE: PositiveInt = Field(default=20)
 
-    # Options for Timescale + Grafana Dashboards
-    # SEE https://github.com/SvenskaSpel/locust-plugins/blob/master/locust_plugins/timescale/
+    # Timescale: Log and graph results using TimescaleDB and Grafana dashboards
+    # SEE https://github.com/SvenskaSpel/locust-plugins/tree/master/locust_plugins/dashboards
     #
     LOCUST_TIMESCALE: NonNegativeInt = Field(
         default=1,
@@ -87,6 +130,10 @@ class LocustSettings(BaseSettings):
         if not v.is_relative_to(_LOCUST_FILES_DIR):
             msg = f"{v} must be a test file relative to {_LOCUST_FILES_DIR}"
             raise ValueError(msg)
+
+        # NOTE: CHECK that all the env-vars are defined for this test
+        # _check_load_and_instantiate_settings_classes(f"{v}")
+
         return v.relative_to(_TEST_DIR)
 
     @field_serializer("LOCUST_RUN_TIME")
@@ -104,8 +151,19 @@ class LocustSettings(BaseSettings):
 
 
 if __name__ == "__main__":
-    settings = LocustSettings()
-    env_vars = [
-        f"{key}={val}" for key, val in json.loads(settings.model_dump_json()).items()
-    ]
+    locust_settings = LocustSettings()
+
+    arguments = dict(
+        arg.removeprefix("--").split("=") for arg in sys.argv if arg.startswith("--")
+    )
+
+    settings_objects = [locust_settings]
+    for sclass in _get_settings_classes(locust_settings.LOCUST_LOCUSTFILE):
+        settings_objects.append(sclass(**arguments))
+
+    env_vars = []
+    for obj in settings_objects:
+        env_vars += [
+            f"{key}={val}" for key, val in json.loads(obj.model_dump_json()).items()
+        ]
     print("\n".join(env_vars))

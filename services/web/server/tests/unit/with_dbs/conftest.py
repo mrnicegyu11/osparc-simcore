@@ -15,11 +15,11 @@ import asyncio
 import random
 import sys
 import textwrap
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from collections.abc import AsyncIterable, AsyncIterator, Awaitable, Callable, Iterator
 from copy import deepcopy
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, AsyncIterable, Final
+from typing import Any, Final
 from unittest import mock
 from unittest.mock import AsyncMock, MagicMock
 
@@ -41,7 +41,7 @@ from faker import Faker
 from models_library.api_schemas_directorv2.dynamic_services import DynamicServiceGet
 from models_library.products import ProductName
 from models_library.services_enums import ServiceState
-from pydantic import ByteSize, parse_obj_as
+from pydantic import ByteSize, TypeAdapter
 from pytest_mock import MockerFixture
 from pytest_simcore.helpers.dict_tools import ConfigDict
 from pytest_simcore.helpers.faker_factories import random_product
@@ -382,7 +382,7 @@ async def storage_subsystem_mock(mocker: MockerFixture) -> MockedStorageSubsyste
     mock3 = mocker.patch(
         "simcore_service_webserver.projects._crud_api_create.get_project_total_size_simcore_s3",
         autospec=True,
-        return_value=parse_obj_as(ByteSize, "1Gib"),
+        return_value=TypeAdapter(ByteSize).validate_python("1Gib"),
     )
 
     return MockedStorageSubsystem(mock, mock1, mock2, mock3)
@@ -853,7 +853,7 @@ async def all_product_prices(
 
     result = {}
     for product_name in all_products_names:
-        usd_or_none = product_price.get(product_name, None)
+        usd_or_none = product_price.get(product_name)
         if usd_or_none is not None:
             await _pre_connection.execute(
                 products_prices.insert().values(

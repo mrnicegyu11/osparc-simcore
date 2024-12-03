@@ -186,38 +186,41 @@ def mock_env(
             "REGISTRY_PW": "test",
             "REGISTRY_SSL": "false",
             "REGISTRY_USER": "test",
+            "REGISTRY_URL": faker.url(),
             "SC_BOOT_MODE": "production",
             "SIMCORE_SERVICES_NETWORK_NAME": "test_network_name",
             "SWARM_STACK_NAME": "pytest-simcore",
             "TRAEFIK_SIMCORE_ZONE": "test_traefik_zone",
+            "DIRECTOR_V2_TRACING": "null",
         },
     )
-
-
-@pytest.fixture()
-async def client(mock_env: EnvVarsDict) -> AsyncIterator[TestClient]:
-    settings = AppSettings.create_from_envs()
-    app = init_app(settings)
-    print("Application settings\n", settings.json(indent=2))
-    # NOTE: this way we ensure the events are run in the application
-    # since it starts the app on a test server
-    with TestClient(app, raise_server_exceptions=True) as test_client:
-        yield test_client
 
 
 @pytest.fixture()
 async def initialized_app(mock_env: EnvVarsDict) -> AsyncIterable[FastAPI]:
     settings = AppSettings.create_from_envs()
     app = init_app(settings)
-    print("Application settings\n", settings.json(indent=2))
+    print("Application settings\n", settings.model_dump_json(indent=2))
     async with LifespanManager(app):
         yield app
 
 
 @pytest.fixture()
+async def client(mock_env: EnvVarsDict) -> AsyncIterator[TestClient]:
+    # NOTE: this way we ensure the events are run in the application
+    # since it starts the app on a test server
+    settings = AppSettings.create_from_envs()
+    app = init_app(settings)
+    # NOTE: we cannot use the initialized_app fixture here as the TestClient also creates it
+    print("Application settings\n", settings.model_dump_json(indent=2))
+    with TestClient(app, raise_server_exceptions=True) as test_client:
+        yield test_client
+
+
+@pytest.fixture()
 async def async_client(initialized_app: FastAPI) -> AsyncIterable[httpx.AsyncClient]:
     async with httpx.AsyncClient(
-        app=initialized_app,
+        transport=httpx.ASGITransport(app=initialized_app),
         base_url="http://director-v2.testserver.io",
         headers={"Content-Type": "application/json"},
     ) as client:
@@ -239,7 +242,7 @@ def fake_workbench(fake_workbench_file: Path) -> NodesDict:
     workbench_dict = json.loads(fake_workbench_file.read_text())
     workbench = {}
     for node_id, node_data in workbench_dict.items():
-        workbench[node_id] = Node.parse_obj(node_data)
+        workbench[node_id] = Node.model_validate(node_data)
     return workbench
 
 
@@ -336,7 +339,9 @@ def mock_exclusive(mock_redis: None, mocker: MockerFixture) -> None:
 @pytest.fixture
 def mock_osparc_variables_api_auth_rpc(mocker: MockerFixture) -> None:
 
-    fake_data = ApiKeyGet.parse_obj(ApiKeyGet.Config.schema_extra["examples"][0])
+    fake_data = ApiKeyGet.model_validate(
+        ApiKeyGet.model_config["json_schema_extra"]["examples"][0]
+    )
 
     async def _create(
         app: FastAPI,

@@ -1,7 +1,7 @@
-from datetime import timedelta
+import datetime as dt
 
 from aiohttp import web
-from pydantic import ByteSize, Field, NonNegativeInt, parse_obj_as
+from pydantic import ByteSize, Field, NonNegativeInt, TypeAdapter
 from settings_library.base import BaseCustomSettings
 
 from .._constants import APP_SETTINGS_KEY
@@ -9,7 +9,7 @@ from .._constants import APP_SETTINGS_KEY
 
 class ProjectsSettings(BaseCustomSettings):
     PROJECTS_MAX_COPY_SIZE_BYTES: ByteSize = Field(
-        default=parse_obj_as(ByteSize, "30Gib"),
+        default=TypeAdapter(ByteSize).validate_python("30Gib"),
         description="defines the maximum authorized project data size"
         " when copying a project (disable with 0)",
     )
@@ -18,8 +18,8 @@ class ProjectsSettings(BaseCustomSettings):
         description="defines the number of dynamic services in a project that can be started concurrently (a value of 0 will disable it)",
     )
 
-    PROJECTS_INACTIVITY_INTERVAL: timedelta = Field(
-        default=timedelta(seconds=20),
+    PROJECTS_INACTIVITY_INTERVAL: dt.timedelta = Field(
+        default=dt.timedelta(seconds=20),
         description="interval after which services need to be idle in order to be considered inactive",
     )
 

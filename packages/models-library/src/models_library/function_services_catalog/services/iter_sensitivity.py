@@ -2,7 +2,7 @@ from collections.abc import Iterator
 from copy import deepcopy
 from typing import Any
 
-from pydantic import schema_of
+from pydantic import TypeAdapter
 
 from ...projects_nodes import OutputID, OutputsDict
 from ...services import ServiceMetaDataPublished, ServiceType
@@ -10,10 +10,13 @@ from ...services_constants import LATEST_INTEGRATION_VERSION
 from .._key_labels import FUNCTION_SERVICE_KEY_PREFIX
 from .._utils import EN, OM, FunctionServices, create_fake_thumbnail_url
 
-LIST_NUMBERS_SCHEMA: dict[str, Any] = schema_of(list[float], title="list[number]")
+LIST_NUMBERS_SCHEMA: dict[str, Any] = {
+    **TypeAdapter(list[float]).json_schema(),
+    "title": "list[number]",
+}
 
 
-META = ServiceMetaDataPublished.parse_obj(
+META = ServiceMetaDataPublished.model_validate(
     {
         "integration-version": LATEST_INTEGRATION_VERSION,
         "key": f"{FUNCTION_SERVICE_KEY_PREFIX}/data-iterator/sensitivity",

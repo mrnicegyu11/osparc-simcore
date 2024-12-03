@@ -8,15 +8,11 @@ from .base import BaseCustomSettings
 class AwsEfsSettings(BaseCustomSettings):
     EFS_DNS_NAME: str = Field(
         description="AWS Elastic File System DNS name",
-        example="fs-xxx.efs.us-east-1.amazonaws.com",
+        examples=["fs-xxx.efs.us-east-1.amazonaws.com"],
     )
     EFS_PROJECT_SPECIFIC_DATA_DIRECTORY: str
     EFS_MOUNTED_PATH: Path = Field(
         description="This is the path where EFS is mounted to the EC2 machine",
-    )
-    EFS_ONLY_ENABLED_FOR_USERIDS: list[int] = Field(
-        description="This is temporary solution so we can enable it for specific users for testing purpose",
-        example=[1],
     )
 
 

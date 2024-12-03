@@ -27,7 +27,7 @@ def test_healthcheck(
     rabbitmq_mock = mocker.Mock(spec=RabbitMQClient)
     rabbitmq_mock.healthy = True
     mocker.patch(
-        "simcore_service_resource_usage_tracker.modules.rabbitmq.get_rabbitmq_client",
+        "simcore_service_resource_usage_tracker.services.modules.rabbitmq.get_rabbitmq_client",
         return_value=rabbitmq_mock,
     )
 
@@ -50,7 +50,7 @@ def test_healthcheck__unhealthy(
     rabbitmq_mock = mocker.Mock(spec=RabbitMQClient)
     rabbitmq_mock.healthy = False
     mocker.patch(
-        "simcore_service_resource_usage_tracker.modules.rabbitmq.get_rabbitmq_client",
+        "simcore_service_resource_usage_tracker.services.modules.rabbitmq.get_rabbitmq_client",
         return_value=rabbitmq_mock,
     )
 
@@ -68,7 +68,7 @@ def test_meta(
 ):
     response = client.get(f"/{API_VTAG}/meta")
     assert response.status_code == status.HTTP_200_OK
-    meta = _Meta.parse_obj(response.json())
+    meta = _Meta.model_validate(response.json())
 
-    response = client.get(meta.docs_url)
+    response = client.get(f"{meta.docs_url}")
     assert response.status_code == status.HTTP_200_OK

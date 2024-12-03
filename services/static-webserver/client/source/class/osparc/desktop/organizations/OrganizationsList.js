@@ -65,14 +65,11 @@ qx.Class.define("osparc.desktop.organizations.OrganizationsList", {
 
   statics: {
     sortOrganizations: function(a, b) {
-      const sorted = osparc.share.Collaborators.sortByAccessRights(a["accessRights"], b["accessRights"]);
+      const sorted = osparc.share.Collaborators.sortByAccessRights(a.getAccessRights(), b.getAccessRights());
       if (sorted !== 0) {
         return sorted;
       }
-      if (("label" in a) && ("label" in b)) {
-        return a["label"].localeCompare(b["label"]);
-      }
-      return 0;
+      return a.getLabel().localeCompare(b.getLabel());
     }
   },
 
@@ -83,7 +80,7 @@ qx.Class.define("osparc.desktop.organizations.OrganizationsList", {
     getOrgModel: function(orgId) {
       let org = null;
       this.__orgsModel.forEach(orgModel => {
-        if (orgModel.getGid() === parseInt(orgId)) {
+        if (orgModel.getGroupId() === parseInt(orgId)) {
           org = orgModel;
         }
       });
@@ -99,10 +96,9 @@ qx.Class.define("osparc.desktop.organizations.OrganizationsList", {
         allowGrowX: false
       });
       createOrgBtn.addListener("execute", function() {
-        const newOrg = true;
-        const orgEditor = new osparc.editor.OrganizationEditor(newOrg);
-        const title = this.tr("Organization Details Editor");
-        const win = osparc.ui.window.Window.popUpInWindow(orgEditor, title, 400, 250);
+        const title = this.tr("New Organization");
+        const orgEditor = new osparc.editor.OrganizationEditor();
+        const win = osparc.ui.window.Window.popUpInWindow(orgEditor, title, 400, 200);
         orgEditor.addListener("createOrg", () => {
           this.__createOrganization(win, orgEditor.getChildControl("create"), orgEditor);
         });
@@ -134,12 +130,12 @@ qx.Class.define("osparc.desktop.organizations.OrganizationsList", {
       orgsCtrl.setDelegate({
         createItem: () => new osparc.ui.list.OrganizationListItem(),
         bindItem: (ctrl, item, id) => {
-          ctrl.bindProperty("gid", "key", null, item, id);
-          ctrl.bindProperty("gid", "model", null, item, id);
+          ctrl.bindProperty("groupId", "key", null, item, id);
+          ctrl.bindProperty("groupId", "model", null, item, id);
           ctrl.bindProperty("thumbnail", "thumbnail", null, item, id);
           ctrl.bindProperty("label", "title", null, item, id);
           ctrl.bindProperty("description", "subtitle", null, item, id);
-          ctrl.bindProperty("nMembers", "contact", null, item, id);
+          ctrl.bindProperty("groupMembers", "groupMembers", null, item, id);
           ctrl.bindProperty("accessRights", "accessRights", null, item, id);
         },
         configureItem: item => {
@@ -176,30 +172,19 @@ qx.Class.define("osparc.desktop.organizations.OrganizationsList", {
       }
     },
 
-    reloadOrganizations: function() {
+    reloadOrganizations: function(orgId) {
       this.__orgsUIList.resetSelection();
       const orgsModel = this.__orgsModel;
       orgsModel.removeAll();
 
-      const useCache = false;
-      osparc.data.Resources.get("organizations", {}, useCache)
-        .then(async respOrgs => {
-          const orgs = respOrgs["organizations"];
-          const promises = await orgs.map(async org => {
-            const params = {
-              url: {
-                gid: org["gid"]
-              }
-            };
-            const respOrgMembers = await osparc.data.Resources.get("organizationMembers", params);
-            org["nMembers"] = Object.keys(respOrgMembers).length + this.tr(" members");
-            return org;
-          });
-          const orgsList = await Promise.all(promises);
-          orgsList.sort(this.self().sortOrganizations);
-          orgsList.forEach(org => orgsModel.append(qx.data.marshal.Json.createModel(org)));
-          this.setOrganizationsLoaded(true);
-        });
+      const groupsStore = osparc.store.Groups.getInstance();
+      const orgs = Object.values(groupsStore.getOrganizations());
+      orgs.sort(this.self().sortOrganizations);
+      orgs.forEach(org => orgsModel.append(org));
+      this.setOrganizationsLoaded(true);
+      if (orgId) {
+        this.fireDataEvent("organizationSelected", orgId);
+      }
     },
 
     __openEditOrganization: function(orgId) {
@@ -208,16 +193,9 @@ qx.Class.define("osparc.desktop.organizations.OrganizationsList", {
         return;
       }
 
-      const newOrg = false;
-      const orgEditor = new osparc.editor.OrganizationEditor(newOrg);
-      org.bind("gid", orgEditor, "gid");
-      org.bind("label", orgEditor, "label");
-      org.bind("description", orgEditor, "description");
-      org.bind("thumbnail", orgEditor, "thumbnail", {
-        converter: val => val ? val : ""
-      });
       const title = this.tr("Organization Details Editor");
-      const win = osparc.ui.window.Window.popUpInWindow(orgEditor, title, 400, 250);
+      const orgEditor = new osparc.editor.OrganizationEditor(org);
+      const win = osparc.ui.window.Window.popUpInWindow(orgEditor, title, 400, 200);
       orgEditor.addListener("updateOrg", () => {
         this.__updateOrganization(win, orgEditor.getChildControl("save"), orgEditor);
       });
@@ -227,7 +205,7 @@ qx.Class.define("osparc.desktop.organizations.OrganizationsList", {
     __deleteOrganization: function(orgKey) {
       let org = null;
       this.__orgsModel.forEach(orgModel => {
-        if (orgModel.getGid() === parseInt(orgKey)) {
+        if (orgModel.getGroupId() === parseInt(orgKey)) {
           org = orgModel;
         }
       });
@@ -238,6 +216,7 @@ qx.Class.define("osparc.desktop.organizations.OrganizationsList", {
       const name = org.getLabel();
       const msg = this.tr("Are you sure you want to delete ") + name + "?";
       const win = new osparc.ui.window.Confirmation(msg).set({
+        caption: this.tr("Delete Organization"),
         confirmText: this.tr("Delete"),
         confirmAction: "delete"
       });
@@ -245,19 +224,10 @@ qx.Class.define("osparc.desktop.organizations.OrganizationsList", {
       win.open();
       win.addListener("close", () => {
         if (win.getConfirmed()) {
-          const params = {
-            url: {
-              "gid": orgKey
-            }
-          };
-          osparc.data.Resources.fetch("organizations", "delete", params)
+          const groupsStore = osparc.store.Groups.getInstance(orgKey);
+          groupsStore.deleteOrganization(orgKey)
             .then(() => {
-              osparc.store.Store.getInstance().reset("organizations");
-              // reload "profile", "organizations" are part of the information in this endpoint
-              osparc.data.Resources.getOne("profile", {}, null, false)
-                .then(() => {
-                  this.reloadOrganizations();
-                });
+              this.reloadOrganizations();
             })
             .catch(err => {
               osparc.FlashMessenger.getInstance().logAs(this.tr("Something went wrong deleting ") + name, "ERROR");
@@ -271,33 +241,20 @@ qx.Class.define("osparc.desktop.organizations.OrganizationsList", {
     },
 
     __createOrganization: function(win, button, orgEditor) {
-      const orgKey = orgEditor.getGid();
       const name = orgEditor.getLabel();
       const description = orgEditor.getDescription();
       const thumbnail = orgEditor.getThumbnail();
-      const params = {
-        url: {
-          "gid": orgKey
-        },
-        data: {
-          "label": name,
-          "description": description,
-          "thumbnail": thumbnail || null
-        }
-      };
-      osparc.data.Resources.fetch("organizations", "post", params)
-        .then(() => {
+      const groupsStore = osparc.store.Groups.getInstance();
+      groupsStore.postOrganization(name, description, thumbnail)
+        .then(org => {
           osparc.FlashMessenger.getInstance().logAs(name + this.tr(" successfully created"));
           button.setFetching(false);
-          osparc.store.Store.getInstance().reset("organizations");
-          // reload "profile", "organizations" are part of the information in this endpoint
-          osparc.data.Resources.getOne("profile", {}, null, false)
-            .then(() => {
-              this.reloadOrganizations();
-            });
+          // open it
+          this.reloadOrganizations(org.getGroupId());
         })
         .catch(err => {
-          osparc.FlashMessenger.getInstance().logAs(this.tr("Something went wrong creating ") + name, "ERROR");
+          const errorMessage = err["message"] || this.tr("Something went wrong creating ") + name;
+          osparc.FlashMessenger.getInstance().logAs(errorMessage, "ERROR");
           button.setFetching(false);
           console.error(err);
         })
@@ -307,27 +264,15 @@ qx.Class.define("osparc.desktop.organizations.OrganizationsList", {
     },
 
     __updateOrganization: function(win, button, orgEditor) {
-      const orgKey = orgEditor.getGid();
+      const groupId = orgEditor.getGid();
       const name = orgEditor.getLabel();
       const description = orgEditor.getDescription();
       const thumbnail = orgEditor.getThumbnail();
-      const params = {
-        url: {
-          "gid": orgKey
-        },
-        data: {
-          "label": name,
-          "description": description,
-          "thumbnail": thumbnail || null
-        }
-      };
-      osparc.data.Resources.fetch("organizations", "patch", params)
+      osparc.store.Groups.getInstance().patchOrganization(groupId, name, description, thumbnail)
         .then(() => {
           osparc.FlashMessenger.getInstance().logAs(name + this.tr(" successfully edited"));
           button.setFetching(false);
           win.close();
-          osparc.store.Store.getInstance().reset("organizations");
-          this.reloadOrganizations();
         })
         .catch(err => {
           osparc.FlashMessenger.getInstance().logAs(this.tr("Something went wrong editing ") + name, "ERROR");

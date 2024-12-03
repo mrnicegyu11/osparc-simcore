@@ -58,7 +58,8 @@ qx.Class.define("osparc.data.model.Study", {
       state: studyData.state || this.getState(),
       quality: studyData.quality || this.getQuality(),
       permalink: studyData.permalink || this.getPermalink(),
-      dev: studyData.dev || this.getDev()
+      dev: studyData.dev || this.getDev(),
+      trashedAt: studyData.trashedAt ? new Date(studyData.trashedAt) : this.getTrashedAt(),
     });
 
     const wbData = studyData.workbench || this.getWorkbench();
@@ -209,7 +210,13 @@ qx.Class.define("osparc.data.model.Study", {
       nullable: true,
       event: "changeReadOnly",
       init: true
-    }
+    },
+
+    trashedAt: {
+      check: "Date",
+      nullable: true,
+      init: null,
+    },
     // ------ ignore for serializing ------
   },
 
@@ -218,7 +225,8 @@ qx.Class.define("osparc.data.model.Study", {
       "permalink",
       "state",
       "pipelineRunning",
-      "readOnly"
+      "readOnly",
+      "trashedAt",
     ],
 
     IgnoreModelizationProps: [
@@ -267,7 +275,8 @@ qx.Class.define("osparc.data.model.Study", {
 
     canIWrite: function(studyAccessRights) {
       const myGroupId = osparc.auth.Data.getInstance().getGroupId();
-      const orgIDs = [...osparc.auth.Data.getInstance().getOrgIds()];
+      const groupsStore = osparc.store.Groups.getInstance();
+      const orgIDs = groupsStore.getOrganizationIds();
       orgIDs.push(myGroupId);
       if (orgIDs.length) {
         return osparc.share.CollaboratorsStudy.canGroupsWrite(studyAccessRights, (orgIDs));
@@ -277,7 +286,8 @@ qx.Class.define("osparc.data.model.Study", {
 
     canIDelete: function(studyAccessRights) {
       const myGroupId = osparc.auth.Data.getInstance().getGroupId();
-      const orgIDs = [...osparc.auth.Data.getInstance().getOrgIds()];
+      const groupsStore = osparc.store.Groups.getInstance();
+      const orgIDs = groupsStore.getOrganizationIds();
       orgIDs.push(myGroupId);
       if (orgIDs.length) {
         return osparc.share.CollaboratorsStudy.canGroupsDelete(studyAccessRights, (orgIDs));
@@ -337,7 +347,18 @@ qx.Class.define("osparc.data.model.Study", {
         "STARTED",
         "RETRY"
       ].includes(state);
-    }
+    },
+
+    __isAnyLinkedNodeMissing: function(studyData) {
+      const existingNodeIds = Object.keys(studyData["workbench"]);
+      const linkedNodeIds = osparc.data.model.Workbench.getLinkedNodeIds(studyData["workbench"]);
+      const allExist = linkedNodeIds.every(linkedNodeId => existingNodeIds.includes(linkedNodeId));
+      return !allExist;
+    },
+
+    isCorrupt: function(studyData) {
+      return this.__isAnyLinkedNodeMissing(studyData);
+    },
   },
 
   members: {

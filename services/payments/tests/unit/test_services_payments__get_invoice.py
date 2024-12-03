@@ -118,4 +118,4 @@ async def test_get_payment_invoice_url(
         payment_id=populate_payment_transaction_db,
     )
     assert invoice_url
-    assert type(invoice_url) is HttpUrl
+    assert isinstance(invoice_url, HttpUrl)

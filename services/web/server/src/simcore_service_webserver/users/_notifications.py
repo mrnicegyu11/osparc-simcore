@@ -1,12 +1,12 @@
 from datetime import datetime
 from enum import auto
-from typing import Any, ClassVar, Final, Literal
+from typing import Final, Literal
 from uuid import uuid4
 
 from models_library.products import ProductName
 from models_library.users import UserID
 from models_library.utils.enums import StrAutoEnum
-from pydantic import BaseModel, NonNegativeInt, validator
+from pydantic import BaseModel, ConfigDict, NonNegativeInt, field_validator
 
 MAX_NOTIFICATIONS_FOR_USER_TO_SHOW: Final[NonNegativeInt] = 10
 MAX_NOTIFICATIONS_FOR_USER_TO_KEEP: Final[NonNegativeInt] = 100
@@ -32,8 +32,10 @@ class BaseUserNotification(BaseModel):
     text: str
     date: datetime
     product: Literal["UNDEFINED"] | ProductName = "UNDEFINED"
+    resource_id: Literal[""] | str = ""
+    user_from_id: Literal[None] | UserID = None
 
-    @validator("category", pre=True)
+    @field_validator("category", mode="before")
     @classmethod
     def category_to_upper(cls, value: str) -> str:
         return value.upper()
@@ -58,10 +60,12 @@ class UserNotification(BaseUserNotification):
     def create_from_request_data(
         cls, request_data: UserNotificationCreate
     ) -> "UserNotification":
-        return cls.construct(id=f"{uuid4()}", read=False, **request_data.dict())
+        return cls.model_construct(
+            id=f"{uuid4()}", read=False, **request_data.model_dump()
+        )
 
-    class Config:
-        schema_extra: ClassVar[dict[str, Any]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "id": "3fb96d89-ff5d-4d27-b5aa-d20d46e20eb8",
@@ -106,6 +110,8 @@ class UserNotification(BaseUserNotification):
                     "date": "2023-02-23T16:28:13.122Z",
                     "product": "s4l",
                     "read": False,
+                    "resource_id": "3fb96d89-ff5d-4d27-b5aa-d20d46e20e12",
+                    "user_from_id": "2",
                 },
                 {
                     "id": "390053c9-3931-40e1-839f-585268f6fd3e",
@@ -117,6 +123,9 @@ class UserNotification(BaseUserNotification):
                     "date": "2023-09-29T16:28:13.122Z",
                     "product": "tis",
                     "read": False,
+                    "resource_id": "3fb96d89-ff5d-4d27-b5aa-d20d46e20e13",
+                    "user_from_id": "2",
                 },
             ]
         }
+    )

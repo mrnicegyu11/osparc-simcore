@@ -37,8 +37,8 @@ on:
           - all
 
 env:
-  DEFAULT_MAX_NANO_CPUS: 10000000
-  DEFAULT_MAX_MEMORY: 268435456
+  # NOTE: 'COLUMNS' is a shell env var that represents the width (number of columns)
+  #       of the terminal or command-line interface in characters.
   COLUMNS: 120
 
 concurrency:
@@ -54,6 +54,7 @@ jobs:
       aws-library: ${{ steps.filter.outputs.aws-library }}
       dask-task-models-library: ${{ steps.filter.outputs.dask-task-models-library }}
       models-library: ${{ steps.filter.outputs.models-library }}
+      common-library: ${{ steps.filter.outputs.common-library }}
       notifications-library: ${{ steps.filter.outputs.notifications-library }}
       postgres-database: ${{ steps.filter.outputs.postgres-database }}
       service-integration: ${{ steps.filter.outputs.service-integration }}
@@ -110,6 +111,8 @@ jobs:
               - 'services/docker-compose*'
               - 'scripts/mypy/*'
               - 'mypy.ini'
+            common-library:
+              - 'packages/common-library/**'
             notifications-library:
               - 'packages/notifications-library/**'
               - 'packages/postgres-database/**'
@@ -189,6 +192,8 @@ jobs:
               - 'packages/**'
               - 'services/director/**'
               - 'services/docker-compose*'
+              - 'scripts/mypy/*'
+              - 'mypy.ini'
             director-v2:
               - 'packages/**'
               - 'services/director-v2/**'
@@ -332,7 +337,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -349,7 +354,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/webserver.bash test_with_db 01
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -383,7 +388,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -394,7 +399,7 @@ jobs:
         run: ./ci/github/unit-testing/webserver.bash install
       - name: test
         run: ./ci/github/unit-testing/webserver.bash test_with_db 02
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -428,7 +433,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -439,7 +444,7 @@ jobs:
         run: ./ci/github/unit-testing/webserver.bash install
       - name: test
         run: ./ci/github/unit-testing/webserver.bash test_with_db 03
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -449,6 +454,51 @@ jobs:
         uses: codecov/test-results-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  unit-test-webserver-04:
+      needs: changes
+      if: ${{ needs.changes.outputs.webserver == 'true' || github.event_name == 'push' }}
+      timeout-minutes: 25 # if this timeout gets too small, then split the tests
+      name: "[unit] webserver 04"
+      runs-on: ${{ matrix.os }}
+      strategy:
+        matrix:
+          python: ["3.11"]
+          os: [ubuntu-22.04]
+        fail-fast: false
+      steps:
+        - uses: actions/checkout@v4
+        - name: setup docker buildx
+          id: buildx
+          uses: docker/setup-buildx-action@v3
+          with:
+            driver: docker-container
+        - name: setup python environment
+          uses: actions/setup-python@v5
+          with:
+            python-version: ${{ matrix.python }}
+        - name: install uv
+          uses: astral-sh/setup-uv@v4
+          with:
+            version: "0.4.x"
+            enable-cache: false
+            cache-dependency-glob: "**/web/server/requirements/ci.txt"
+        - name: show system version
+          run: ./ci/helpers/show_system_versions.bash
+        - name: install webserver
+          run: ./ci/github/unit-testing/webserver.bash install
+        - name: test
+          run: ./ci/github/unit-testing/webserver.bash test_with_db 04
+        - uses: codecov/codecov-action@v5.0.7
+          env:
+            CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          with:
+            flags: unittests #optional
+        - name: Upload test results to Codecov
+          if: ${{ !cancelled() }}
+          uses: codecov/test-results-action@v1
+          with:
+            token: ${{ secrets.CODECOV_TOKEN }}
 
   unit-test-storage:
     needs: changes
@@ -473,7 +523,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -487,7 +537,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/storage.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -523,7 +573,7 @@ jobs:
       - name: install rclone
         run: sudo ./ci/github/helpers/install_rclone.bash
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -537,7 +587,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/agent.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -571,7 +621,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -582,7 +632,7 @@ jobs:
         run: ./ci/github/unit-testing/api.bash install
       - name: test
         run: ./ci/github/unit-testing/api.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -616,7 +666,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -633,7 +683,7 @@ jobs:
       - name: OAS backwards compatibility check
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/api-server.bash openapi-diff
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -667,7 +717,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -681,7 +731,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/autoscaling.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -715,7 +765,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -735,7 +785,7 @@ jobs:
         with:
           name: ${{ github.job }}_docker_logs
           path: ./services/catalog/test_failures
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -769,7 +819,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -794,7 +844,7 @@ jobs:
           source .venv/bin/activate && \
           pushd services/clusters-keeper && \
           make test-ci-unit
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -828,7 +878,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -848,7 +898,7 @@ jobs:
         with:
           name: ${{ github.job }}_docker_logs
           path: ./services/datcore-adapter/test_failures
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -867,11 +917,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # KEEP 3.6 Development of this service is frozen
-        # KEEP ubuntu 20.04, else no python 3.6
-        python: [3.6]
-        os: [ubuntu-20.04]
-        docker_buildx: [v0.10.4]
+        python: ["3.11"]
+        os: [ubuntu-22.04]
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
@@ -884,13 +931,28 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+      - name: install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.4.x"
+          enable-cache: false
+          cache-dependency-glob: "**/director/requirements/ci.txt"
       - name: show system version
         run: ./ci/helpers/show_system_versions.bash
       - name: install
         run: ./ci/github/unit-testing/director.bash install
+      - name: typecheck
+        run: ./ci/github/unit-testing/director.bash typecheck
       - name: test
+        if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/director.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - name: upload failed tests logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.job }}_docker_logs
+          path: ./services/director/test_failures
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -924,7 +986,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -944,7 +1006,7 @@ jobs:
         with:
           name: ${{ github.job }}_docker_logs
           path: ./services/director-v2/test_failures
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -978,7 +1040,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -992,7 +1054,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/aws-library.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1026,7 +1088,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1040,7 +1102,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/dask-task-models-library.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1074,7 +1136,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1088,7 +1150,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/dask-sidecar.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1122,7 +1184,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1146,7 +1208,7 @@ jobs:
           source .venv/bin/activate && \
           pushd services/osparc-gateway-server && \
           make test-ci-unit
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1180,7 +1242,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1194,7 +1256,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/payments.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1228,7 +1290,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1242,7 +1304,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/dynamic-scheduler.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1276,7 +1338,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1300,7 +1362,7 @@ jobs:
           source .venv/bin/activate && \
           pushd services/resource-usage-tracker && \
           make test-ci-unit
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1334,7 +1396,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1348,7 +1410,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/dynamic-sidecar.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1382,7 +1444,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1407,7 +1469,7 @@ jobs:
           source .venv/bin/activate && \
           pushd services/efs-guardian && \
           make test-ci-unit
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1441,7 +1503,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1476,7 +1538,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1490,7 +1552,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/postgres-database.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1524,7 +1586,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1538,7 +1600,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/invitations.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1572,7 +1634,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1586,7 +1648,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/service-integration.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1620,7 +1682,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1634,7 +1696,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/service-library.bash test_all
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1668,7 +1730,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1682,7 +1744,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/settings-library.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1716,7 +1778,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1729,7 +1791,7 @@ jobs:
         run: ./ci/github/unit-testing/models-library.bash typecheck
       - name: test
         run: ./ci/github/unit-testing/models-library.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1739,6 +1801,47 @@ jobs:
         uses: codecov/test-results-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  unit-test-common-library:
+    needs: changes
+    if: ${{ needs.changes.outputs.common-library == 'true' || github.event_name == 'push' }}
+    timeout-minutes: 18 # if this timeout gets too small, then split the tests
+    name: "[unit] common-library"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        python: ["3.11"]
+        os: [ubuntu-22.04]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup docker buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+      - name: setup python environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: install uv
+        uses: yezz123/setup-uv@v4
+      - uses: actions/cache@v4
+        id: cache-uv
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-${{ github.job }}-python-${{ matrix.python }}-uv
+      - name: show system version
+        run: ./ci/helpers/show_system_versions.bash
+      - name: install
+        run: ./ci/github/unit-testing/common-library.bash install
+      - name: typecheck
+        run: ./ci/github/unit-testing/common-library.bash typecheck
+      - name: test
+        run: ./ci/github/unit-testing/common-library.bash test
+      - uses: codecov/codecov-action@v5.0.7
+        with:
+          flags: unittests #optional
 
   unit-test-notifications-library:
     needs: changes
@@ -1765,7 +1868,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1779,7 +1882,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/notifications-library.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1815,7 +1918,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1829,7 +1932,7 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: ./ci/github/unit-testing/simcore-sdk.bash test
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1860,6 +1963,7 @@ jobs:
         unit-test-dynamic-sidecar,
         unit-test-efs-guardian,
         unit-test-models-library,
+        unit-test-common-library,
         unit-test-notifications-library,
         unit-test-osparc-gateway-server,
         unit-test-payments,
@@ -1875,6 +1979,7 @@ jobs:
         unit-test-webserver-01,
         unit-test-webserver-02,
         unit-test-webserver-03,
+        unit-test-webserver-04,
       ]
     runs-on: ubuntu-latest
     steps:
@@ -1923,7 +2028,7 @@ jobs:
       - name: load docker images
         run: make load-images local-src=/${{ runner.temp }}/build
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -1943,7 +2048,7 @@ jobs:
       - name: cleanup
         if: ${{ !cancelled() }}
         run: ./ci/github/integration-testing/webserver.bash clean_up
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -1986,7 +2091,7 @@ jobs:
       - name: load docker images
         run: make load-images local-src=/${{ runner.temp }}/build
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -2006,7 +2111,7 @@ jobs:
       - name: cleanup
         if: ${{ !cancelled() }}
         run: ./ci/github/integration-testing/webserver.bash clean_up
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -2049,7 +2154,7 @@ jobs:
       - name: load docker images
         run: make load-images local-src=/${{ runner.temp }}/build
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -2069,7 +2174,7 @@ jobs:
       - name: cleanup
         if: ${{ !cancelled() }}
         run: ./ci/github/integration-testing/director-v2.bash clean_up
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -2086,6 +2191,11 @@ jobs:
         python: ["3.11"]
         os: [ubuntu-22.04]
       fail-fast: false
+    env:
+      # NOTE: DIRECTOR_DEFAULT_MAX_* used for integration-tests that include `director` service
+      DIRECTOR_DEFAULT_MAX_MEMORY: 268435456
+      DIRECTOR_DEFAULT_MAX_NANO_CPUS: 10000000
+      DIRECTOR_TRACING: null
     steps:
       - uses: actions/checkout@v4
       - name: setup docker buildx
@@ -2116,7 +2226,7 @@ jobs:
       - name: install rclone
         run: sudo ./ci/github/helpers/install_rclone.bash
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -2136,7 +2246,7 @@ jobs:
       - name: cleanup
         if: ${{ !cancelled() }}
         run: ./ci/github/integration-testing/director-v2.bash clean_up
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -2181,7 +2291,7 @@ jobs:
       - name: install rclone
         run: sudo ./ci/github/helpers/install_rclone.bash
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -2201,7 +2311,7 @@ jobs:
       - name: cleanup
         if: ${{ !cancelled() }}
         run: ./ci/github/integration-testing/dynamic-sidecar.bash clean_up
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -2245,7 +2355,7 @@ jobs:
       - name: load docker images
         run: make load-images local-src=/${{ runner.temp }}/build
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -2279,7 +2389,7 @@ jobs:
         run: |
           pushd services/osparc-gateway-server && \
           make down
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -2322,7 +2432,7 @@ jobs:
       - name: load docker images
         run: make load-images local-src=/${{ runner.temp }}/build
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -2342,7 +2452,7 @@ jobs:
       - name: cleanup
         if: ${{ !cancelled() }}
         run: ./ci/github/integration-testing/simcore-sdk.bash clean_up
-      - uses: codecov/codecov-action@v4.6.0
+      - uses: codecov/codecov-action@v5.0.7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -2409,7 +2519,7 @@ jobs:
       - name: load docker images
         run: make load-images local-src=/${{ runner.temp }}/build
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -2469,7 +2579,7 @@ jobs:
       - name: load docker images
         run: make load-images local-src=/${{ runner.temp }}/build
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -2540,7 +2650,7 @@ jobs:
       - name: load docker images
         run: make load-images local-src=/${{ runner.temp }}/build
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -2603,7 +2713,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false
@@ -2665,7 +2775,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v4
         with:
           version: "0.4.x"
           enable-cache: false

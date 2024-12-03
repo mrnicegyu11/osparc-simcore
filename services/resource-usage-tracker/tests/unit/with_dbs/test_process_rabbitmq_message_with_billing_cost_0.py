@@ -31,10 +31,10 @@ from simcore_postgres_database.models.resource_tracker_pricing_units import (
     resource_tracker_pricing_units,
 )
 from simcore_postgres_database.models.services import services_meta_data
-from simcore_service_resource_usage_tracker.modules.db.repositories.resource_tracker import (
+from simcore_service_resource_usage_tracker.services.modules.db.repositories.resource_tracker import (
     ResourceTrackerRepository,
 )
-from simcore_service_resource_usage_tracker.resource_tracker_process_messages import (
+from simcore_service_resource_usage_tracker.services.process_message_running_service import (
     _process_heartbeat_event,
     _process_start_event,
     _process_stop_event,
@@ -68,7 +68,9 @@ def resource_tracker_pricing_tables_db(postgres_db: sa.engine.Engine) -> Iterato
             resource_tracker_pricing_units.insert().values(
                 pricing_plan_id=1,
                 unit_name="S",
-                unit_extra_info=UnitExtraInfo.Config.schema_extra["examples"][0],
+                unit_extra_info=UnitExtraInfo.model_config["json_schema_extra"][
+                    "examples"
+                ][0],
                 default=False,
                 specific_info={},
                 created=datetime.now(tz=timezone.utc),

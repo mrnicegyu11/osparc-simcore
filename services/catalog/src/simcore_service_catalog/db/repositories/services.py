@@ -15,7 +15,7 @@ from models_library.products import ProductName
 from models_library.services import ServiceKey, ServiceVersion
 from models_library.users import GroupID, UserID
 from psycopg2.errors import ForeignKeyViolation
-from pydantic import PositiveInt, ValidationError, parse_obj_as
+from pydantic import PositiveInt, TypeAdapter, ValidationError
 from simcore_postgres_database.utils_services import create_select_latest_services_query
 from sqlalchemy import literal_column
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -62,7 +62,7 @@ def _merge_specs(
     merged_spec = {}
     for spec in itertools.chain([everyone_spec], team_specs.values(), [user_spec]):
         if spec is not None:
-            merged_spec.update(spec.dict(include={"sidecar", "service"}))
+            merged_spec.update(spec.model_dump(include={"sidecar", "service"}))
     return merged_spec
 
 
@@ -83,7 +83,7 @@ class ServicesRepository(BaseRepository):
 
         async with self.db_engine.connect() as conn:
             return [
-                ServiceMetaDataAtDB.from_orm(row)
+                ServiceMetaDataAtDB.model_validate(row)
                 async for row in await conn.stream(
                     list_services_stmt(
                         gids=gids,
@@ -134,7 +134,7 @@ class ServicesRepository(BaseRepository):
 
         async with self.db_engine.connect() as conn:
             releases = [
-                ServiceMetaDataAtDB.from_orm(row)
+                ServiceMetaDataAtDB.model_validate(row)
                 async for row in await conn.stream(query)
             ]
 
@@ -163,7 +163,7 @@ class ServicesRepository(BaseRepository):
             result = await conn.execute(query)
             row = result.first()
         if row:
-            return ServiceMetaDataAtDB.from_orm(row)
+            return ServiceMetaDataAtDB.model_validate(row)
         return None  # mypy
 
     async def get_service(
@@ -208,7 +208,7 @@ class ServicesRepository(BaseRepository):
             result = await conn.execute(query)
             row = result.first()
         if row:
-            return ServiceMetaDataAtDB.from_orm(row)
+            return ServiceMetaDataAtDB.model_validate(row)
         return None  # mypy
 
     async def create_or_update_service(
@@ -229,12 +229,12 @@ class ServicesRepository(BaseRepository):
             result = await conn.execute(
                 # pylint: disable=no-value-for-parameter
                 services_meta_data.insert()
-                .values(**new_service.dict(by_alias=True))
+                .values(**new_service.model_dump(by_alias=True))
                 .returning(literal_column("*"))
             )
             row = result.first()
             assert row  # nosec
-            created_service = ServiceMetaDataAtDB.from_orm(row)
+            created_service = ServiceMetaDataAtDB.model_validate(row)
 
             for access_rights in new_service_access_rights:
                 insert_stmt = pg_insert(services_access_rights).values(
@@ -252,7 +252,7 @@ class ServicesRepository(BaseRepository):
                 & (services_meta_data.c.version == patched_service.version)
             )
             .values(
-                **patched_service.dict(
+                **patched_service.model_dump(
                     by_alias=True,
                     exclude_unset=True,
                     exclude={"key", "version"},
@@ -441,7 +441,11 @@ class ServicesRepository(BaseRepository):
             result = await conn.execute(stmt_history)
             row = result.one_or_none()
 
-        return parse_obj_as(list[ReleaseFromDB], row.history) if row else None
+        return (
+            TypeAdapter(list[ReleaseFromDB]).validate_python(row.history)
+            if row
+            else None
+        )
 
     # Service Access Rights ----
 
@@ -464,7 +468,7 @@ class ServicesRepository(BaseRepository):
 
         async with self.db_engine.connect() as conn:
             return [
-                ServiceAccessRightsAtDB.from_orm(row)
+                ServiceAccessRightsAtDB.model_validate(row)
                 async for row in await conn.stream(query)
             ]
 
@@ -490,7 +494,7 @@ class ServicesRepository(BaseRepository):
         async with self.db_engine.connect() as conn:
             async for row in await conn.stream(query):
                 service_to_access_rights[(row.key, row.version)].append(
-                    ServiceAccessRightsAtDB.from_orm(row)
+                    ServiceAccessRightsAtDB.model_validate(row)
                 )
         return service_to_access_rights
 
@@ -500,7 +504,7 @@ class ServicesRepository(BaseRepository):
         # update the services_access_rights table (some might be added/removed/modified)
         for rights in new_access_rights:
             insert_stmt = pg_insert(services_access_rights).values(
-                **rights.dict(by_alias=True)
+                **rights.model_dump(by_alias=True)
             )
             on_update_stmt = insert_stmt.on_conflict_do_update(
                 index_elements=[
@@ -509,7 +513,7 @@ class ServicesRepository(BaseRepository):
                     services_access_rights.c.gid,
                     services_access_rights.c.product_name,
                 ],
-                set_=rights.dict(
+                set_=rights.model_dump(
                     by_alias=True,
                     exclude_unset=True,
                     exclude={"key", "version", "gid", "product_name"},
@@ -581,7 +585,7 @@ class ServicesRepository(BaseRepository):
                 try:
                     _logger.debug("found following %s", f"{row=}")
                     # validate the specs first
-                    db_service_spec = ServiceSpecificationsAtDB.from_orm(row)
+                    db_service_spec = ServiceSpecificationsAtDB.model_validate(row)
                     db_spec_version = packaging.version.parse(
                         db_service_spec.service_version
                     )
@@ -617,5 +621,5 @@ class ServicesRepository(BaseRepository):
         if merged_specifications := _merge_specs(
             everyone_specs, teams_specs, primary_specs
         ):
-            return ServiceSpecifications.parse_obj(merged_specifications)
+            return ServiceSpecifications.model_validate(merged_specifications)
         return None  # mypy

@@ -312,7 +312,19 @@ qx.Class.define("osparc.data.model.Node", {
         return outputs[outputKey]["value"];
       }
       return null;
-    }
+    },
+
+    getLinkedNodeIds: function(nodeData) {
+      const linkedNodeIds = new Set([]);
+      if ("inputs" in nodeData) {
+        Object.values(nodeData["inputs"]).forEach(link => {
+          if (link && typeof link === "object" && "nodeUuid" in link) {
+            linkedNodeIds.add(link["nodeUuid"]);
+          }
+        });
+      }
+      return Array.from(linkedNodeIds);
+    },
   },
 
   members: {
@@ -949,6 +961,7 @@ qx.Class.define("osparc.data.model.Node", {
         if (preferencesSettings.getConfirmStopNode()) {
           const msg = this.tr("Do you really want Stop and Save the current state?");
           const win = new osparc.ui.window.Confirmation(msg).set({
+            caption: this.tr("Stop"),
             confirmText: this.tr("Stop")
           });
           win.center();

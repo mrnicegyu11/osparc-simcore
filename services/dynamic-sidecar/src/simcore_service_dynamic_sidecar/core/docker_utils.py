@@ -1,7 +1,7 @@
 import logging
 from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
-from typing import Any, cast
+from typing import Any
 
 import aiodocker
 import yaml
@@ -50,7 +50,13 @@ async def get_volume_by_label(label: str, run_id: RunID) -> dict[str, Any]:
         volumes = data["Volumes"]
         _logger.debug("volumes query for label=%s volumes=%s", label, volumes)
         if len(volumes) != 1:
-            raise VolumeNotFoundError(label, run_id, volumes)
+            raise VolumeNotFoundError(
+                volume_count=len(volumes),
+                source_label=label,
+                run_id=run_id,
+                volume_names=" ".join(v.get("Name", "UNKNOWN") for v in volumes),
+                status_code=http_status.HTTP_404_NOT_FOUND,
+            )
         volume_details: dict[str, Any] = volumes[0]
         return volume_details
 
@@ -59,7 +65,7 @@ async def _get_container(
     docker: aiodocker.Docker, container_name: str
 ) -> DockerContainer | None:
     try:
-        return cast(DockerContainer, await docker.containers.get(container_name))
+        return await docker.containers.get(container_name)
     except aiodocker.DockerError as e:
         if e.status == http_status.HTTP_404_NOT_FOUND:
             return None
@@ -110,7 +116,7 @@ def are_all_containers_in_expected_states(
     states: Iterable[ContainerState | None],
 ) -> bool:
     return all(
-        s is not None and s.Status in _ACCEPTED_CONTAINER_STATUSES for s in states
+        s is not None and s.status in _ACCEPTED_CONTAINER_STATUSES for s in states
     )
 
 

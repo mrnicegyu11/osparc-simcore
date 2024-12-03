@@ -277,12 +277,11 @@ qx.Class.define("osparc.utils.Utils", {
       return reloadButton;
     },
 
-    getUniqueStudyName: function(preferredName, list) {
+    getUniqueName: function(preferredName, existingNames) {
       let title = preferredName;
-      const existingTitles = list.map(study => study.name);
-      if (existingTitles.includes(title)) {
+      if (existingNames.includes(title)) {
         let cont = 1;
-        while (existingTitles.includes(`${title} (${cont})`)) {
+        while (existingNames.includes(`${title} (${cont})`)) {
           cont++;
         }
         title += ` (${cont})`;
@@ -720,12 +719,14 @@ qx.Class.define("osparc.utils.Utils", {
       if (!+bytes) {
         return "0 Bytes";
       }
-      const k = 1000;
-      const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-      const dm = decimals < 0 ? 0 : decimals;
 
-      const i = Math.floor(Math.log(bytes) / Math.log(k))
-      return `${isDecimalCollapsed ? parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) : (bytes / Math.pow(k, i)).toFixed(dm)} ${sizes[i]}`
+      const k = 1000;
+      const dm = decimals < 0 ? 0 : decimals;
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      const value = (bytes / Math.pow(k, i)).toFixed(dm);
+      const metrics = ["Bytes", "kB", "MB", "GB", "TB"];
+      const metric = i < metrics.length ? metrics[i] : "";
+      return `${isDecimalCollapsed ? parseFloat(value) : value} ${metric}`
     },
 
     bytesToGB: function(bytes) {
@@ -1021,20 +1022,27 @@ qx.Class.define("osparc.utils.Utils", {
     },
 
     setIdToWidget: (qWidget, id) => {
-      if (qWidget.getContentElement) {
+      if (qWidget.getContentElement && qWidget.getContentElement()) {
         qWidget.getContentElement().setAttribute("osparc-test-id", id);
       }
     },
 
     getIdFromWidget: qWidget => {
-      if (qWidget.getContentElement) {
+      if (qWidget.getContentElement && qWidget.getContentElement()) {
         return qWidget.getContentElement().getAttribute("osparc-test-id");
       }
       return null;
     },
 
+    removeIdAttribute: qWidget => {
+      if (qWidget.getContentElement && qWidget.getContentElement()) {
+        return qWidget.getContentElement().removeAttribute("osparc-test-id");
+      }
+      return null;
+    },
+
     setKeyToWidget: (qWidget, id) => {
-      if (qWidget.getContentElement) {
+      if (qWidget.getContentElement && qWidget.getContentElement()) {
         qWidget.getContentElement().setAttribute("osparc-test-key", id);
       }
     },

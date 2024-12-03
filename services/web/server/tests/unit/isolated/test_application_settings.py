@@ -6,8 +6,8 @@ import json
 
 import pytest
 from aiohttp import web
-from models_library.utils.json_serialization import json_dumps
-from pydantic import HttpUrl, parse_obj_as
+from common_library.json_serialization import json_dumps
+from pydantic import HttpUrl, TypeAdapter
 from pytest_simcore.helpers.typing_env import EnvVarsDict
 from simcore_service_webserver.application_settings import (
     APP_SETTINGS_KEY,
@@ -22,10 +22,11 @@ def app_settings(
 ) -> ApplicationSettings:
     app = web.Application()
 
+    print("envs\n", json.dumps(mock_webserver_service_environment, indent=1))
+
     # init and validation happens here
     settings = setup_settings(app)
-    print("envs\n", json.dumps(mock_webserver_service_environment, indent=1))
-    print("settings:\n", settings.json(indent=1))
+    print("settings:\n", settings.model_dump_json(indent=1))
 
     assert APP_SETTINGS_KEY in app
     assert app[APP_SETTINGS_KEY] == settings
@@ -97,9 +98,35 @@ def test_settings_to_client_statics_plugins(
     )
 
     assert statics["vcsReleaseTag"]
-    assert parse_obj_as(HttpUrl, statics["vcsReleaseUrl"])
+    assert TypeAdapter(HttpUrl).validate_python(statics["vcsReleaseUrl"])
 
     assert set(statics["pluginsDisabled"]) == (disable_plugins | {"WEBSERVER_CLUSTERS"})
+
+
+@pytest.mark.parametrize("is_dev_feature_enabled", [True, False])
+@pytest.mark.parametrize(
+    "plugin_name",
+    ["WEBSERVER_META_MODELING", "WEBSERVER_VERSION_CONTROL"]
+    # NOTE: this is the list in _enable_only_if_dev_features_allowed
+)
+def test_disabled_plugins_settings_to_client_statics(
+    is_dev_feature_enabled: bool,
+    mock_webserver_service_environment: EnvVarsDict,
+    monkeypatch: pytest.MonkeyPatch,
+    plugin_name: str,
+):
+    monkeypatch.setenv(
+        "WEBSERVER_DEV_FEATURES_ENABLED", f"{is_dev_feature_enabled}".lower()
+    )
+
+    settings = ApplicationSettings.create_from_envs()
+    statics = settings.to_client_statics()
+
+    # checks whether it is shown to the front-end depending on the value of WEBSERVER_DEV_FEATURES_ENABLED
+    if is_dev_feature_enabled:
+        assert plugin_name not in set(statics["pluginsDisabled"])
+    else:
+        assert plugin_name in set(statics["pluginsDisabled"])
 
 
 def test_avoid_sensitive_info_in_public(app_settings: ApplicationSettings):

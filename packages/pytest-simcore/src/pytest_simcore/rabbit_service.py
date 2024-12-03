@@ -1,15 +1,17 @@
 # pylint: disable=redefined-outer-name
 # pylint: disable=unused-argument
 # pylint: disable=unused-variable
+# pylint: disable=protected-access
 
 import asyncio
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import suppress
 
 import aio_pika
 import pytest
 import tenacity
-from servicelib.rabbitmq import RabbitMQClient, RabbitMQRPCClient
+from servicelib.rabbitmq import QueueName, RabbitMQClient, RabbitMQRPCClient
 from settings_library.rabbit import RabbitSettings
 from tenacity.before_sleep import before_sleep_log
 from tenacity.stop import stop_after_attempt
@@ -36,19 +38,21 @@ async def wait_till_rabbit_responsive(url: str) -> None:
 @pytest.fixture
 def rabbit_env_vars_dict(
     docker_stack: dict,
-    testing_environ_vars: dict,
+    env_vars_for_docker_compose: EnvVarsDict,
 ) -> EnvVarsDict:
-    prefix = testing_environ_vars["SWARM_STACK_NAME"]
+    prefix = env_vars_for_docker_compose["SWARM_STACK_NAME"]
     assert f"{prefix}_rabbit" in docker_stack["services"]
 
-    port = get_service_published_port("rabbit", testing_environ_vars["RABBIT_PORT"])
+    port = get_service_published_port(
+        "rabbit", env_vars_for_docker_compose["RABBIT_PORT"]
+    )
 
     return {
-        "RABBIT_USER": testing_environ_vars["RABBIT_USER"],
-        "RABBIT_PASSWORD": testing_environ_vars["RABBIT_PASSWORD"],
+        "RABBIT_USER": env_vars_for_docker_compose["RABBIT_USER"],
+        "RABBIT_PASSWORD": env_vars_for_docker_compose["RABBIT_PASSWORD"],
         "RABBIT_HOST": get_localhost_ip(),
         "RABBIT_PORT": f"{port}",
-        "RABBIT_SECURE": testing_environ_vars["RABBIT_SECURE"],
+        "RABBIT_SECURE": env_vars_for_docker_compose["RABBIT_SECURE"],
     }
 
 
@@ -56,7 +60,7 @@ def rabbit_env_vars_dict(
 async def rabbit_settings(rabbit_env_vars_dict: EnvVarsDict) -> RabbitSettings:
     """Returns the settings of a rabbit service that is up and responsive"""
 
-    settings = RabbitSettings.parse_obj(rabbit_env_vars_dict)
+    settings = RabbitSettings.model_validate(rabbit_env_vars_dict)
     await wait_till_rabbit_responsive(settings.dsn)
     return settings
 
@@ -130,8 +134,21 @@ async def rabbitmq_rpc_client(
     await asyncio.gather(*(client.close() for client in created_clients))
 
 
-async def rabbitmq_client(create_rabbitmq_client):
-    # NOTE: Legacy fixture
-    # Use create_rabbitmq_client instead of rabbitmq_client
-    # SEE docs/coding-conventions.md::CC4
-    return create_rabbitmq_client
+@pytest.fixture
+async def ensure_parametrized_queue_is_empty(
+    create_rabbitmq_client: Callable[[str], RabbitMQClient], queue_name: QueueName
+) -> AsyncIterator[None]:
+    rabbitmq_client = create_rabbitmq_client("pytest-purger")
+
+    async def _queue_messages_purger() -> None:
+        with suppress(aio_pika.exceptions.ChannelClosed):
+            assert rabbitmq_client._channel_pool  # noqa: SLF001
+            async with rabbitmq_client._channel_pool.acquire() as channel:  # noqa: SLF001
+                assert isinstance(channel, aio_pika.RobustChannel)
+                queue = await channel.get_queue(queue_name)
+                await queue.purge()
+
+    await _queue_messages_purger()
+    yield
+    # cleanup
+    await _queue_messages_purger()

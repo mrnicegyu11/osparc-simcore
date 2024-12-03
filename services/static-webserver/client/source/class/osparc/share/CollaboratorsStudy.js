@@ -35,13 +35,7 @@ qx.Class.define("osparc.share.CollaboratorsStudy", {
     this._resourceType = studyData["resourceType"]; // study or template
     const studyDataCopy = osparc.data.model.Study.deepCloneStudyObject(studyData);
 
-    const initCollabs = [];
-    if (osparc.data.Permissions.getInstance().canDo("study.everyone.share")) {
-      initCollabs.push(this.self().getEveryoneProductObj(this._resourceType === "study"));
-      initCollabs.push(this.self().getEveryoneObj(this._resourceType === "study"));
-    }
-
-    this.base(arguments, studyDataCopy, initCollabs);
+    this.base(arguments, studyDataCopy);
   },
 
   statics: {
@@ -105,20 +99,6 @@ qx.Class.define("osparc.share.CollaboratorsStudy", {
       }
       return true;
     },
-
-    getEveryoneProductObj: function(isStudy) {
-      const everyoneProductGroup = osparc.store.Store.getInstance().getEveryoneProductGroup();
-      const everyone = osparc.utils.Utils.deepCloneObject(everyoneProductGroup);
-      everyone["accessRights"] = isStudy ? this.getCollaboratorAccessRight() : this.getViewerAccessRight();
-      return everyone;
-    },
-
-    getEveryoneObj: function(isStudy) {
-      const everyoneGroup = osparc.store.Store.getInstance().getEveryoneGroup();
-      const everyone = osparc.utils.Utils.deepCloneObject(everyoneGroup);
-      everyone["accessRights"] = isStudy ? this.getCollaboratorAccessRight() : this.getViewerAccessRight();
-      return everyone;
-    }
   },
 
   members: {
@@ -127,15 +107,18 @@ qx.Class.define("osparc.share.CollaboratorsStudy", {
         return;
       }
 
+      const resourceAlias = this._resourceType === "template" ?
+        osparc.product.Utils.getTemplateAlias({firstUpperCase: true}) :
+        osparc.product.Utils.getStudyAlias({firstUpperCase: true});
       const newCollaborators = {};
       gids.forEach(gid => {
         newCollaborators[gid] = this._resourceType === "study" ? this.self().getCollaboratorAccessRight() : this.self().getViewerAccessRight();
       });
       osparc.info.StudyUtils.addCollaborators(this._serializedDataCopy, newCollaborators)
         .then(() => {
-          this.fireDataEvent("updateAccessRights", this._serializedDataCopy);
-          const text = this.tr("User(s) successfully added.");
+          const text = resourceAlias + this.tr(" successfully shared");
           osparc.FlashMessenger.getInstance().logAs(text);
+          this.fireDataEvent("updateAccessRights", this._serializedDataCopy);
           this._reloadCollaboratorsList();
 
           this.__pushNotifications(gids);
@@ -143,7 +126,7 @@ qx.Class.define("osparc.share.CollaboratorsStudy", {
         })
         .catch(err => {
           console.error(err);
-          osparc.FlashMessenger.getInstance().logAs(this.tr("Something went adding user(s)"), "ERROR");
+          osparc.FlashMessenger.getInstance().logAs(this.tr("Something went wrong sharing the ") + resourceAlias, "ERROR");
         });
     },
 
@@ -155,12 +138,12 @@ qx.Class.define("osparc.share.CollaboratorsStudy", {
       return osparc.info.StudyUtils.removeCollaborator(this._serializedDataCopy, collaborator["gid"])
         .then(() => {
           this.fireDataEvent("updateAccessRights", this._serializedDataCopy);
-          osparc.FlashMessenger.getInstance().logAs(this.tr("Member successfully removed"));
+          osparc.FlashMessenger.getInstance().logAs(collaborator["name"] + this.tr(" successfully removed"));
           this._reloadCollaboratorsList();
         })
         .catch(err => {
           console.error(err);
-          osparc.FlashMessenger.getInstance().logAs(this.tr("Something went wrong removing Member"), "ERROR");
+          osparc.FlashMessenger.getInstance().logAs(this.tr("Something went wrong removing ") + collaborator["name"], "ERROR");
         })
         .finally(() => {
           if (item) {
@@ -193,8 +176,8 @@ qx.Class.define("osparc.share.CollaboratorsStudy", {
       this.__make(
         collaborator["gid"],
         this.self().getCollaboratorAccessRight(),
-        this.tr(`${osparc.data.Roles.STUDY[1].label} successfully changed ${osparc.data.Roles.STUDY[2].label}`),
-        this.tr(`Something went wrong changing ${osparc.data.Roles.STUDY[1].label} to ${osparc.data.Roles.STUDY[2].label}`),
+        this.tr(`Successfully promoted to ${osparc.data.Roles.STUDY[2].label}`),
+        this.tr(`Something went wrong promoting to ${osparc.data.Roles.STUDY[2].label}`),
         item
       );
     },
@@ -203,8 +186,8 @@ qx.Class.define("osparc.share.CollaboratorsStudy", {
       this.__make(
         collaborator["gid"],
         this.self().getOwnerAccessRight(),
-        this.tr(`${osparc.data.Roles.STUDY[2].label} successfully changed to ${osparc.data.Roles.STUDY[3].label}`),
-        this.tr(`Something went wrong changing ${osparc.data.Roles.STUDY[2].label} to ${osparc.data.Roles.STUDY[3].label}`),
+        this.tr(`Successfully promoted to ${osparc.data.Roles.STUDY[3].label}`),
+        this.tr(`Something went wrong promoting to ${osparc.data.Roles.STUDY[3].label}`),
         item
       );
     },
@@ -215,17 +198,17 @@ qx.Class.define("osparc.share.CollaboratorsStudy", {
         this.__make(
           gid,
           this.self().getViewerAccessRight(),
-          this.tr(`${osparc.data.Roles.STUDY[2].label} successfully changed to ${osparc.data.Roles.STUDY[1].label}`),
-          this.tr(`Something went wrong changing ${osparc.data.Roles.STUDY[2].label} to ${osparc.data.Roles.STUDY[1].label}`),
+          this.tr(`Successfully demoted to ${osparc.data.Roles.STUDY[1].label}`),
+          this.tr(`Something went wrong demoting to ${osparc.data.Roles.STUDY[1].label}`),
           itm
         );
       };
 
-      const groupData = await osparc.store.Store.getInstance().getGroup(groupId);
-      const isOrganization = (groupData && !("id" in groupData));
-      if (isOrganization) {
+      const organization = osparc.store.Groups.getInstance().getOrganization(groupId);
+      if (organization) {
         const msg = this.tr(`Demoting to ${osparc.data.Roles.STUDY[1].label} will remove write access to all the members of the Organization. Are you sure?`);
         const win = new osparc.ui.window.Confirmation(msg).set({
+          caption: this.tr("Demote"),
           confirmAction: "delete",
           confirmText: this.tr("Yes")
         });
@@ -245,32 +228,29 @@ qx.Class.define("osparc.share.CollaboratorsStudy", {
       this.__make(
         collaborator["gid"],
         this.self().getCollaboratorAccessRight(),
-        this.tr(`${osparc.data.Roles.STUDY[3].label} successfully changed to ${osparc.data.Roles.STUDY[2].label}`),
-        this.tr(`Something went wrong changing ${osparc.data.Roles.STUDY[3].label} to ${osparc.data.Roles.STUDY[2].label}`),
+        this.tr(`Successfully demoted to ${osparc.data.Roles.STUDY[2].label}`),
+        this.tr(`Something went wrong demoting to ${osparc.data.Roles.STUDY[2].label}`),
         item
       );
     },
 
     __pushNotifications: function(gids) {
       // push 'STUDY_SHARED'/'TEMPLATE_SHARED' notification
-      osparc.store.Store.getInstance().getPotentialCollaborators()
-        .then(potentialCollaborators => {
-          gids.forEach(gid => {
-            if (gid in potentialCollaborators && "id" in potentialCollaborators[gid]) {
-              // it's a user, not an organization
-              const collab = potentialCollaborators[gid];
-              const uid = collab["id"];
-              if (this._resourceType === "study") {
-                osparc.notification.Notifications.postNewStudy(uid, this._serializedDataCopy["uuid"]);
-              } else if (this._resourceType === "template") {
-                // do not push TEMPLATE_SHARED notification if users are not supposed to see the templates
-                if (osparc.data.Permissions.getInstance().canRoleDo("user", "dashboard.templates.read")) {
-                  osparc.notification.Notifications.postNewTemplate(uid, this._serializedDataCopy["uuid"]);
-                }
-              }
+      const potentialCollaborators = osparc.store.Groups.getInstance().getPotentialCollaborators()
+      gids.forEach(gid => {
+        if (gid in potentialCollaborators && "getUserId" in potentialCollaborators[gid]) {
+          // it's a user, not an organization
+          const uid = potentialCollaborators[gid].getUserId();
+          if (this._resourceType === "study") {
+            osparc.notification.Notifications.postNewStudy(uid, this._serializedDataCopy["uuid"]);
+          } else if (this._resourceType === "template") {
+            // do not push TEMPLATE_SHARED notification if users are not supposed to see the templates
+            if (osparc.data.Permissions.getInstance().canRoleDo("user", "dashboard.templates.read")) {
+              osparc.notification.Notifications.postNewTemplate(uid, this._serializedDataCopy["uuid"]);
             }
-          });
-        });
+          }
+        }
+      });
     },
 
     __checkShareePermissions: function(gids) {

@@ -1,13 +1,21 @@
 from contextlib import suppress
-from typing import Any, ClassVar
 
-from pydantic import AnyUrl, BaseModel, Field, ValidationError, parse_obj_as, validator
+from pydantic import (
+    AnyHttpUrl,
+    AnyUrl,
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from ..emails import LowerCaseEmailStr
-
-#
-# GROUPS MODELS defined in OPENAPI specs
-#
+from ..users import UserID
+from ..utils.common_validators import create__check_only_one_is_set__root_validator
+from ._base import InputSchema, OutputSchema
 
 
 class GroupAccessRights(BaseModel):
@@ -18,18 +26,18 @@ class GroupAccessRights(BaseModel):
     read: bool
     write: bool
     delete: bool
-
-    class Config:
-        schema_extra: ClassVar[dict[str, Any]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {"read": True, "write": False, "delete": False},
                 {"read": True, "write": True, "delete": False},
                 {"read": True, "write": True, "delete": True},
             ]
         }
+    )
 
 
-class UsersGroup(BaseModel):
+class GroupGet(OutputSchema):
     gid: int = Field(..., description="the group ID")
     label: str = Field(..., description="the group name")
     description: str = Field(..., description="the group description")
@@ -43,17 +51,8 @@ class UsersGroup(BaseModel):
         alias="inclusionRules",
     )
 
-    @validator("thumbnail", pre=True)
-    @classmethod
-    def sanitize_legacy_data(cls, v):
-        if v:
-            # Enforces null if thumbnail is not valid URL or empty
-            with suppress(ValidationError):
-                return parse_obj_as(AnyUrl, v)
-        return None
-
-    class Config:
-        schema_extra: ClassVar[dict[str, Any]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "examples": [
                 {
                     "gid": "27",
@@ -84,16 +83,38 @@ class UsersGroup(BaseModel):
                 },
             ]
         }
+    )
+
+    @field_validator("thumbnail", mode="before")
+    @classmethod
+    def _sanitize_legacy_data(cls, v):
+        if v:
+            # Enforces null if thumbnail is not valid URL or empty
+            with suppress(ValidationError):
+                return TypeAdapter(AnyHttpUrl).validate_python(v)
+        return None
 
 
-class AllUsersGroups(BaseModel):
-    me: UsersGroup | None = None
-    organizations: list[UsersGroup] | None = None
-    all: UsersGroup | None = None
-    product: UsersGroup | None = None
+class GroupCreate(InputSchema):
+    label: str
+    description: str
+    thumbnail: AnyUrl | None = None
 
-    class Config:
-        schema_extra: ClassVar[dict[str, Any]] = {
+
+class GroupUpdate(InputSchema):
+    label: str | None = None
+    description: str | None = None
+    thumbnail: AnyUrl | None = None
+
+
+class MyGroupsGet(OutputSchema):
+    me: GroupGet
+    organizations: list[GroupGet] | None = None
+    all: GroupGet
+    product: GroupGet | None = None
+
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "me": {
                     "gid": "27",
@@ -131,19 +152,22 @@ class AllUsersGroups(BaseModel):
                 },
             }
         }
+    )
 
 
 class GroupUserGet(BaseModel):
-    id: str | None = Field(None, description="the user id")
+    id: str | None = Field(None, description="the user id", coerce_numbers_to_str=True)
     login: LowerCaseEmailStr | None = Field(None, description="the user login email")
     first_name: str | None = Field(None, description="the user first name")
     last_name: str | None = Field(None, description="the user last name")
     gravatar_id: str | None = Field(None, description="the user gravatar id hash")
-    gid: str | None = Field(None, description="the user primary gid")
+    gid: str | None = Field(
+        None, description="the user primary gid", coerce_numbers_to_str=True
+    )
     access_rights: GroupAccessRights = Field(..., alias="accessRights")
 
-    class Config:
-        schema_extra: ClassVar[dict[str, Any]] = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "1",
                 "login": "mr.smith@matrix.com",
@@ -158,3 +182,39 @@ class GroupUserGet(BaseModel):
                 },
             }
         }
+    )
+
+
+class GroupUserAdd(InputSchema):
+    """
+    Identify the user with either `email` or `uid` — only one.
+    """
+
+    uid: UserID | None = None
+    email: LowerCaseEmailStr | None = None
+
+    _check_uid_or_email = model_validator(mode="after")(
+        create__check_only_one_is_set__root_validator(["uid", "email"])
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"uid": 42}, {"email": "foo@email.com"}]}
+    )
+
+
+class GroupUserUpdate(InputSchema):
+    # NOTE: since it is a single item, it is required. Cannot
+    # update for the moment partial attributes e.g. {read: False}
+    access_rights: GroupAccessRights
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "accessRights": {
+                    "read": True,
+                    "write": False,
+                    "delete": False,
+                },
+            }
+        }
+    )

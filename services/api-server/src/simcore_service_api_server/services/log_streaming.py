@@ -4,21 +4,21 @@ from asyncio import Queue
 from collections.abc import AsyncIterable
 from typing import Final
 
-from models_library.error_codes import create_error_code
+from common_library.error_codes import create_error_code
 from models_library.rabbitmq_messages import LoggerRabbitMessage
 from models_library.users import UserID
 from pydantic import NonNegativeInt
 from servicelib.logging_errors import create_troubleshotting_log_kwargs
 from servicelib.logging_utils import log_catch
-from servicelib.rabbitmq import RabbitMQClient
-from simcore_service_api_server.exceptions.backend_errors import BaseBackEndError
-from simcore_service_api_server.models.schemas.errors import ErrorGet
+from servicelib.rabbitmq import QueueName, RabbitMQClient
 
 from .._constants import MSG_INTERNAL_ERROR_USER_FRIENDLY_TEMPLATE
+from ..exceptions.backend_errors import BaseBackEndError
 from ..exceptions.log_streaming_errors import (
     LogStreamerNotRegisteredError,
-    LogStreamerRegistionConflictError,
+    LogStreamerRegistrationConflictError,
 )
+from ..models.schemas.errors import ErrorGet
 from ..models.schemas.jobs import JobID, JobLog
 from .director_v2 import DirectorV2Api
 
@@ -31,10 +31,10 @@ class LogDistributor:
     def __init__(self, rabbitmq_client: RabbitMQClient):
         self._rabbit_client = rabbitmq_client
         self._log_streamers: dict[JobID, Queue[JobLog]] = {}
-        self._queue_name: str
+        self._queue_name: QueueName
 
     async def setup(self):
-        self._queue_name = await self._rabbit_client.subscribe(
+        self._queue_name, _ = await self._rabbit_client.subscribe(
             LoggerRabbitMessage.get_channel_name(),
             self._distribute_logs,
             exclusive_queue=True,
@@ -53,7 +53,7 @@ class LogDistributor:
 
     async def _distribute_logs(self, data: bytes):
         with log_catch(_logger, reraise=False):
-            got = LoggerRabbitMessage.parse_raw(data)
+            got = LoggerRabbitMessage.model_validate_json(data)
             item = JobLog(
                 job_id=got.project_id,
                 node_id=got.node_id,
@@ -70,7 +70,7 @@ class LogDistributor:
 
     async def register(self, job_id: JobID, queue: Queue[JobLog]):
         if job_id in self._log_streamers:
-            raise LogStreamerRegistionConflictError(job_id=job_id)
+            raise LogStreamerRegistrationConflictError(job_id=job_id)
         self._log_streamers[job_id] = queue
         await self._rabbit_client.add_topics(
             LoggerRabbitMessage.get_channel_name(), topics=[f"{job_id}.*"]
@@ -122,29 +122,28 @@ class LogStreamer:
                     log: JobLog = await asyncio.wait_for(
                         self._queue.get(), timeout=self._log_check_timeout
                     )
-                    yield log.json() + _NEW_LINE
-                except asyncio.TimeoutError:
+                    yield log.model_dump_json() + _NEW_LINE
+                except TimeoutError:
                     done = await self._project_done()
 
-        except BaseBackEndError as exc:
-            _logger.info("%s", f"{exc}")
+        except (BaseBackEndError, LogStreamerRegistrationConflictError) as exc:
+            error_msg = f"{exc}"
 
-            yield ErrorGet(errors=[f"{exc}"]).json() + _NEW_LINE
+            _logger.info("%s: %s", exc.code, error_msg)
+            yield ErrorGet(errors=[error_msg]).model_dump_json() + _NEW_LINE
 
         except Exception as exc:  # pylint: disable=W0718
             error_code = create_error_code(exc)
-            user_error_msg = (
-                MSG_INTERNAL_ERROR_USER_FRIENDLY_TEMPLATE + f" [{error_code}]"
-            )
+            error_msg = MSG_INTERNAL_ERROR_USER_FRIENDLY_TEMPLATE + f" [{error_code}]"
 
             _logger.exception(
                 **create_troubleshotting_log_kwargs(
-                    user_error_msg,
+                    error_msg,
                     error=exc,
                     error_code=error_code,
                 )
             )
-            yield ErrorGet(errors=[user_error_msg]).json() + _NEW_LINE
+            yield ErrorGet(errors=[error_msg]).model_dump_json() + _NEW_LINE
 
         finally:
             await self._log_distributor.deregister(self._job_id)

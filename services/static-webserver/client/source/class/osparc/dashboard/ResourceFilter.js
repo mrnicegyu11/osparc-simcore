@@ -22,7 +22,7 @@ qx.Class.define("osparc.dashboard.ResourceFilter", {
   construct: function(resourceType) {
     this.base(arguments);
 
-    osparc.utils.Utils.setIdToWidget(this, "resourceFilter");
+    osparc.utils.Utils.setIdToWidget(this, resourceType + "-resourceFilter");
 
     this.__resourceType = resourceType;
     this.__sharedWithButtons = [];
@@ -34,6 +34,7 @@ qx.Class.define("osparc.dashboard.ResourceFilter", {
   },
 
   events: {
+    "trashContext": "qx.event.type.Event",
     "changeSharedWith": "qx.event.type.Data",
     "changeSelectedTags": "qx.event.type.Data",
     "changeServiceType": "qx.event.type.Data"
@@ -42,6 +43,7 @@ qx.Class.define("osparc.dashboard.ResourceFilter", {
   members: {
     __resourceType: null,
     __workspacesAndFoldersTree: null,
+    __trashButton: null,
     __sharedWithButtons: null,
     __tagButtons: null,
     __serviceTypeButtons: null,
@@ -49,6 +51,7 @@ qx.Class.define("osparc.dashboard.ResourceFilter", {
     __buildLayout: function() {
       if (this.__resourceType === "study" && osparc.utils.DisabledPlugins.isFoldersEnabled()) {
         this._add(this.__createWorkspacesAndFoldersTree());
+        this._add(this.__createTrashBin());
       } else {
         this._add(this.__createSharedWithFilterLayout());
       }
@@ -60,6 +63,16 @@ qx.Class.define("osparc.dashboard.ResourceFilter", {
       if (this.__resourceType === "service") {
         this._add(this.__createServiceTypeFilterLayout());
       }
+    },
+
+    contextChanged: function(context, workspaceId, folderId) {
+      this.__workspacesAndFoldersTree.set({
+        currentWorkspaceId: workspaceId,
+        currentFolderId: folderId,
+      });
+      this.__workspacesAndFoldersTree.contextChanged(context);
+
+      this.__trashButton.setValue(context === "trash");
     },
 
     /* WORKSPACES AND FOLDERS */
@@ -85,6 +98,76 @@ qx.Class.define("osparc.dashboard.ResourceFilter", {
     },
     /* /WORKSPACES AND FOLDERS */
 
+    /* TRASH BIN */
+    __createTrashBin: function() {
+      const trashButton = this.__trashButton = new qx.ui.toolbar.RadioButton().set({
+        value: false,
+        appearance: "filter-toggle-button",
+        label: this.tr("Trash"),
+        icon: "@FontAwesome5Solid/trash/18",
+      });
+      trashButton.addListener("changeValue", e => {
+        const trashEnabled = e.getData();
+        if (trashEnabled) {
+          this.fireEvent("trashContext");
+        }
+      });
+      this.evaluateTrashEmpty();
+      return trashButton;
+    },
+
+    evaluateTrashEmpty: function() {
+      const studiesParams = {
+        url: {
+          offset: 0,
+          limit: 1, // just one
+          orderBy: JSON.stringify({
+            field: "last_change_date",
+            direction: "desc"
+          }),
+        }
+      };
+      const foldersParams = {
+        url: {
+          offset: 0,
+          limit: 1, // just one
+          orderBy: JSON.stringify({
+            field: "modified_at",
+            direction: "desc"
+          }),
+        }
+      };
+      const workspacesParams = {
+        url: {
+          offset: 0,
+          limit: 1, // just one
+          orderBy: JSON.stringify({
+            field: "modified_at",
+            direction: "desc"
+          }),
+        }
+      };
+      Promise.all([
+        osparc.data.Resources.fetch("studies", "getPageTrashed", studiesParams),
+        osparc.data.Resources.fetch("folders", "getPageTrashed", foldersParams),
+        osparc.data.Resources.fetch("workspaces", "getPageTrashed", workspacesParams),
+      ])
+        .then(values => {
+          const nTrashedStudies = values[0].length;
+          const nTrashedFolders = values[1].length;
+          const nTrashedWorkspaces = values[2].length;
+          this.setTrashEmpty((nTrashedStudies+nTrashedFolders+nTrashedWorkspaces) === 0);
+        })
+        .catch(err => console.error(err));
+    },
+
+    setTrashEmpty: function(isEmpty) {
+      this.__trashButton.set({
+        textColor: isEmpty ? "text" : "danger-red"
+      });
+    },
+    /* /TRASH BIN */
+
     /* SHARED WITH */
     __createSharedWithFilterLayout: function() {
       const sharedWithLayout = new qx.ui.container.Composite(new qx.ui.layout.VBox(5));
@@ -102,6 +185,7 @@ qx.Class.define("osparc.dashboard.ResourceFilter", {
           label: option.label,
           icon: option.icon,
         });
+        osparc.utils.Utils.setIdToWidget(button, this.__resourceType + "-sharedWithFilterItem");
         if (this.__resourceType === "study") {
           if (option.id === "show-all") {
             button.set({
@@ -138,7 +222,7 @@ qx.Class.define("osparc.dashboard.ResourceFilter", {
     /* TAGS */
     __createTagsFilterLayout: function() {
       const layout = new qx.ui.container.Composite(new qx.ui.layout.VBox(5));
-      osparc.utils.Utils.setIdToWidget(layout, "tagsFilter");
+      osparc.utils.Utils.setIdToWidget(layout, this.__resourceType + "-tagsFilter");
 
       this.__populateTags(layout, []);
       osparc.store.Store.getInstance().addListener("changeTags", () => {
@@ -157,16 +241,15 @@ qx.Class.define("osparc.dashboard.ResourceFilter", {
       const maxTags = 5;
       this.__tagButtons = [];
       layout.removeAll();
-      osparc.store.Store.getInstance().getTags().forEach((tag, idx) => {
-        const button = new qx.ui.form.ToggleButton(tag.name, "@FontAwesome5Solid/tag/18");
-        osparc.utils.Utils.setIdToWidget(button, "tagFilterItem");
-        button.id = tag.id;
+      osparc.store.Tags.getInstance().getTags().forEach((tag, idx) => {
+        const button = new qx.ui.form.ToggleButton(null, "@FontAwesome5Solid/tag/18");
+        button.id = tag.getTagId();
+        tag.bind("name", button, "label");
+        tag.bind("color", button.getChildControl("icon"), "textColor");
+        osparc.utils.Utils.setIdToWidget(button, this.__resourceType + "-tagFilterItem");
         button.set({
           appearance: "filter-toggle-button",
-          value: selectedTagIds.includes(tag.id)
-        });
-        button.getChildControl("icon").set({
-          textColor: tag.color
+          value: selectedTagIds.includes(tag.getTagId())
         });
 
         layout.add(button);
@@ -220,6 +303,7 @@ qx.Class.define("osparc.dashboard.ResourceFilter", {
         const iconSize = 20;
         const button = new qx.ui.toolbar.RadioButton(serviceType.label, serviceType.icon+iconSize);
         button.id = serviceId;
+        osparc.utils.Utils.setIdToWidget(button, this.__resourceType + "-serviceTypeFilterItem");
         button.set({
           appearance: "filter-toggle-button",
           value: false

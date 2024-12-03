@@ -1,14 +1,17 @@
+from decimal import Decimal
 from functools import cached_property
+from typing import Annotated
 
 from models_library.basic_types import NonNegativeDecimal
 from pydantic import (
+    AliasChoices,
     EmailStr,
     Field,
     HttpUrl,
     PositiveFloat,
     SecretStr,
-    parse_obj_as,
-    validator,
+    TypeAdapter,
+    field_validator,
 )
 from servicelib.logging_utils_filtering import LoggerName, MessageSubstring
 from settings_library.application import BaseApplicationSettings
@@ -29,24 +32,26 @@ class _BaseApplicationSettings(BaseApplicationSettings, MixinLoggingSettings):
     # CODE STATICS ---------------------------------------------------------
     API_VERSION: str = API_VERSION
     APP_NAME: str = PROJECT_NAME
-    API_VTAG: VersionTag = parse_obj_as(VersionTag, API_VTAG)
+    API_VTAG: VersionTag = TypeAdapter(VersionTag).validate_python(API_VTAG)
 
     # RUNTIME  -----------------------------------------------------------
 
     PAYMENTS_LOGLEVEL: LogLevel = Field(
-        default=LogLevel.INFO, env=["PAYMENTS_LOGLEVEL", "LOG_LEVEL", "LOGLEVEL"]
+        default=LogLevel.INFO,
+        validation_alias=AliasChoices("PAYMENTS_LOGLEVEL", "LOG_LEVEL", "LOGLEVEL"),
     )
     PAYMENTS_LOG_FORMAT_LOCAL_DEV_ENABLED: bool = Field(
         default=False,
-        env=[
-            "PAYMENTS_LOG_FORMAT_LOCAL_DEV_ENABLED",
-            "LOG_FORMAT_LOCAL_DEV_ENABLED",
-        ],
+        validation_alias=AliasChoices(
+            "LOG_FORMAT_LOCAL_DEV_ENABLED", "PAYMENTS_LOG_FORMAT_LOCAL_DEV_ENABLED"
+        ),
         description="Enables local development log format. WARNING: make sure it is disabled if you want to have structured logs!",
     )
     PAYMENTS_LOG_FILTER_MAPPING: dict[LoggerName, list[MessageSubstring]] = Field(
         default_factory=dict,
-        env=["PAYMENTS_LOG_FILTER_MAPPING", "LOG_FILTER_MAPPING"],
+        validation_alias=AliasChoices(
+            "LOG_FILTER_MAPPING", "PAYMENTS_LOG_FILTER_MAPPING"
+        ),
         description="is a dictionary that maps specific loggers (such as 'uvicorn.access' or 'gunicorn.access') to a list of log message patterns that should be filtered out.",
     )
 
@@ -54,7 +59,7 @@ class _BaseApplicationSettings(BaseApplicationSettings, MixinLoggingSettings):
     def LOG_LEVEL(self):  # noqa: N802
         return self.PAYMENTS_LOGLEVEL
 
-    @validator("PAYMENTS_LOGLEVEL", pre=True)
+    @field_validator("PAYMENTS_LOGLEVEL", mode="before")
     @classmethod
     def valid_log_level(cls, value: str) -> str:
         return cls.validate_log_level(value)
@@ -92,20 +97,27 @@ class ApplicationSettings(_BaseApplicationSettings):
     )
     PAYMENTS_ACCESS_TOKEN_EXPIRE_MINUTES: PositiveFloat = Field(default=30)
 
-    PAYMENTS_AUTORECHARGE_MIN_BALANCE_IN_CREDITS: NonNegativeDecimal = Field(
-        default=100,
-        description="Minimum balance in credits to top-up for auto-recharge",
-    )
+    PAYMENTS_AUTORECHARGE_MIN_BALANCE_IN_CREDITS: Annotated[
+        NonNegativeDecimal,
+        Field(
+            description="Minimum balance in credits to top-up for auto-recharge",
+        ),
+    ] = Decimal(100)
 
-    PAYMENTS_AUTORECHARGE_DEFAULT_TOP_UP_AMOUNT: NonNegativeDecimal = Field(
-        default=100,
-        description="Default value in USD on the amount to top-up for auto-recharge (`top_up_amount_in_usd`)",
-    )
+    PAYMENTS_AUTORECHARGE_DEFAULT_TOP_UP_AMOUNT: Annotated[
+        NonNegativeDecimal,
+        Field(
+            description="Default value in USD on the amount to top-up for auto-recharge (`top_up_amount_in_usd`)",
+        ),
+    ] = Decimal(100)
 
-    PAYMENTS_AUTORECHARGE_DEFAULT_MONTHLY_LIMIT: NonNegativeDecimal | None = Field(
-        default=10000,
-        description="Default value in USD for the montly limit for auto-recharge (`monthly_limit_in_usd`)",
-    )
+    PAYMENTS_AUTORECHARGE_DEFAULT_MONTHLY_LIMIT: Annotated[
+        NonNegativeDecimal | None,
+        Field(
+            description="Default value in USD for the montly limit for auto-recharge (`monthly_limit_in_usd`)",
+        ),
+    ] = Decimal(10_000)
+
     PAYMENTS_AUTORECHARGE_ENABLED: bool = Field(
         default=False,
         description="Based on this variable is the auto recharge functionality in Payment service enabled",
@@ -117,15 +129,18 @@ class ApplicationSettings(_BaseApplicationSettings):
     )
 
     PAYMENTS_RABBITMQ: RabbitSettings = Field(
-        auto_default_from_env=True, description="settings for service/rabbitmq"
+        json_schema_extra={"auto_default_from_env": True},
+        description="settings for service/rabbitmq",
     )
 
     PAYMENTS_TRACING: TracingSettings | None = Field(
-        auto_default_from_env=True, description="settings for opentelemetry tracing"
+        json_schema_extra={"auto_default_from_env": True},
+        description="settings for opentelemetry tracing",
     )
 
     PAYMENTS_POSTGRES: PostgresSettings = Field(
-        auto_default_from_env=True, description="settings for postgres service"
+        json_schema_extra={"auto_default_from_env": True},
+        description="settings for postgres service",
     )
 
     PAYMENTS_STRIPE_URL: HttpUrl = Field(
@@ -140,12 +155,13 @@ class ApplicationSettings(_BaseApplicationSettings):
     )
 
     PAYMENTS_RESOURCE_USAGE_TRACKER: ResourceUsageTrackerSettings = Field(
-        auto_default_from_env=True, description="settings for RUT service"
+        json_schema_extra={"auto_default_from_env": True},
+        description="settings for RUT service",
     )
 
     PAYMENTS_PROMETHEUS_INSTRUMENTATION_ENABLED: bool = True
 
     PAYMENTS_EMAIL: SMTPSettings | None = Field(
-        auto_default_from_env=True,
+        json_schema_extra={"auto_default_from_env": True},
         description="optional email (see notifier_email service)",
     )

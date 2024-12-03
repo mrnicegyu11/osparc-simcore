@@ -23,14 +23,19 @@ service:
     traces/swarm:
       receivers: [otlp]
       exporters: [otlphttp/swarm-jaeger]
-      processors: [batch,probabilistic_sampler]
+      processors: [batch,probabilistic_sampler,filter/drop_healthcheck]
     traces/k8s:
       receivers: [otlp]
       exporters: [otlphttp/k8s-signoz,otlphttp/k8s-jaeger]
-      processors: [batch,probabilistic_sampler]
-processors:
+      processors: [batch,probabilistic_sampler,filter/drop_healthcheck]
   batch:
     timeout: 5s
     send_batch_size: ${TRACING_OPENTELEMETRY_COLLECTOR_BATCH_SIZE}
   probabilistic_sampler:
     sampling_percentage: ${TRACING_OPENTELEMETRY_COLLECTOR_SAMPLING_PERCENTAGE}
+  filter/drop_healthcheck:
+    error_mode: ignore
+    traces:
+      span:
+        - attributes["http.route"] == "healthcheck_readiness_probe"
+        - attributes["db.statement"] == "PING" and attributes["db.system"] == "redis"

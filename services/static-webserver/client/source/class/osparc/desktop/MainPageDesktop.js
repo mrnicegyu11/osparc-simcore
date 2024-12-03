@@ -26,31 +26,29 @@ qx.Class.define("osparc.desktop.MainPageDesktop", {
     this._add(osparc.notification.RibbonNotifications.getInstance());
 
     const navBar = new osparc.navigation.NavigationBar();
-    navBar.populateLayout()
-      .then(() => {
-        // exclude some items from the navigation bar
-        navBar.getChildControl("dashboard-label").exclude();
-        navBar.getChildControl("dashboard-button").exclude();
-        navBar.getChildControl("notifications-button").exclude();
-        navBar.getChildControl("help").exclude();
+    navBar.populateLayout();
+    // exclude some items from the navigation bar
+    navBar.getChildControl("dashboard-label").exclude();
+    navBar.getChildControl("dashboard-button").exclude();
+    navBar.getChildControl("notifications-button").exclude();
+    navBar.getChildControl("help").exclude();
 
-        // exclude all the menu entries except "log-out" from user menu
-        const userMenuButton = navBar.getChildControl("user-menu");
-        const userMenu = userMenuButton.getMenu();
-        // eslint-disable-next-line no-underscore-dangle
-        const userMenuEntries = userMenu._getCreatedChildControls();
-        Object.entries(userMenuEntries).forEach(([id, userMenuEntry]) => {
-          if (!["mini-profile-view", "po-center", "log-out"].includes(id)) {
-            userMenuEntry.exclude();
-          }
-        });
-        // exclude also the separators
-        userMenu.getChildren().forEach(child => {
-          if (child.classname === "qx.ui.menu.Separator") {
-            child.exclude();
-          }
-        });
-      });
+    // exclude all the menu entries except "log-out" from user menu
+    const userMenuButton = navBar.getChildControl("user-menu");
+    const userMenu = userMenuButton.getMenu();
+    // eslint-disable-next-line no-underscore-dangle
+    const userMenuEntries = userMenu._getCreatedChildControls();
+    Object.entries(userMenuEntries).forEach(([id, userMenuEntry]) => {
+      if (!["mini-profile-view", "po-center", "log-out"].includes(id)) {
+        userMenuEntry.exclude();
+      }
+    });
+    // exclude also the separators
+    userMenu.getChildren().forEach(child => {
+      if (child.classname === "qx.ui.menu.Separator") {
+        child.exclude();
+      }
+    });
     this._add(navBar);
 
     osparc.MaintenanceTracker.getInstance().startTracker();
@@ -63,7 +61,7 @@ qx.Class.define("osparc.desktop.MainPageDesktop", {
       preloadPromises.push(store.reloadWallets());
     }
     preloadPromises.push(store.getAllClassifiers(true));
-    preloadPromises.push(store.getTags());
+    preloadPromises.push(osparc.store.Tags.getInstance().fetchTags());
     Promise.all(preloadPromises)
       .then(() => {
         const desktopCenter = new osparc.desktop.credits.DesktopCenter();

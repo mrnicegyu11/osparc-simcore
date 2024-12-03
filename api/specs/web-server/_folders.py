@@ -9,28 +9,32 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from _common import as_query
+from fastapi import APIRouter, Depends, status
 from models_library.api_schemas_webserver.folders_v2 import (
-    CreateFolderBodyParams,
+    FolderCreateBodyParams,
     FolderGet,
-    PutFolderBodyParams,
+    FolderReplaceBodyParams,
 )
-from models_library.folders import FolderID
 from models_library.generics import Envelope
-from models_library.rest_pagination import PageQueryParameters
-from models_library.workspaces import WorkspaceID
-from pydantic import Json
+from models_library.rest_error import EnvelopedError
 from simcore_service_webserver._meta import API_VTAG
-from simcore_service_webserver.folders._folders_handlers import FoldersPathParams
+from simcore_service_webserver.folders._exceptions_handlers import _TO_HTTP_ERROR_MAP
+from simcore_service_webserver.folders._models import (
+    FolderSearchQueryParams,
+    FoldersListQueryParams,
+    FoldersPathParams,
+)
 
 router = APIRouter(
     prefix=f"/{API_VTAG}",
     tags=[
         "folders",
     ],
+    responses={
+        i.status_code: {"model": EnvelopedError} for i in _TO_HTTP_ERROR_MAP.values()
+    },
 )
-
-### Folders
 
 
 @router.post(
@@ -38,7 +42,9 @@ router = APIRouter(
     response_model=Envelope[FolderGet],
     status_code=status.HTTP_201_CREATED,
 )
-async def create_folder(_body: CreateFolderBodyParams):
+async def create_folder(
+    _body: FolderCreateBodyParams,
+):
     ...
 
 
@@ -47,16 +53,17 @@ async def create_folder(_body: CreateFolderBodyParams):
     response_model=Envelope[list[FolderGet]],
 )
 async def list_folders(
-    params: Annotated[PageQueryParameters, Depends()],
-    folder_id: FolderID | None = None,
-    workspace_id: WorkspaceID | None = None,
-    order_by: Annotated[
-        Json,
-        Query(
-            description="Order by field (modified_at|name|description) and direction (asc|desc). The default sorting order is ascending.",
-            example='{"field": "name", "direction": "desc"}',
-        ),
-    ] = '{"field": "modified_at", "direction": "desc"}',
+    _query: Annotated[as_query(FoldersListQueryParams), Depends()],
+):
+    ...
+
+
+@router.get(
+    "/folders:search",
+    response_model=Envelope[list[FolderGet]],
+)
+async def list_folders_full_search(
+    _query: Annotated[as_query(FolderSearchQueryParams), Depends()],
 ):
     ...
 
@@ -65,7 +72,9 @@ async def list_folders(
     "/folders/{folder_id}",
     response_model=Envelope[FolderGet],
 )
-async def get_folder(_path: Annotated[FoldersPathParams, Depends()]):
+async def get_folder(
+    _path: Annotated[FoldersPathParams, Depends()],
+):
     ...
 
 
@@ -74,7 +83,8 @@ async def get_folder(_path: Annotated[FoldersPathParams, Depends()]):
     response_model=Envelope[FolderGet],
 )
 async def replace_folder(
-    _path: Annotated[FoldersPathParams, Depends()], _body: PutFolderBodyParams
+    _path: Annotated[FoldersPathParams, Depends()],
+    _body: FolderReplaceBodyParams,
 ):
     ...
 
@@ -83,5 +93,7 @@ async def replace_folder(
     "/folders/{folder_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete_folder(_path: Annotated[FoldersPathParams, Depends()]):
+async def delete_folder(
+    _path: Annotated[FoldersPathParams, Depends()],
+):
     ...

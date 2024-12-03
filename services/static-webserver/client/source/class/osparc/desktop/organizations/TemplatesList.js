@@ -70,7 +70,7 @@ qx.Class.define("osparc.desktop.organizations.TemplatesList", {
       const templatesModel = this.__templatesModel = new qx.data.Array();
       const templatesCtrl = new qx.data.controller.List(templatesModel, templatesUIList, "name");
       templatesCtrl.setDelegate({
-        createItem: () => new osparc.desktop.organizations.SharedResourceListItem(),
+        createItem: () => new osparc.desktop.organizations.SharedResourceListItem("template"),
         bindItem: (ctrl, item, id) => {
           ctrl.bindProperty("uuid", "model", null, item, id);
           ctrl.bindProperty("uuid", "key", null, item, id);
@@ -113,13 +113,13 @@ qx.Class.define("osparc.desktop.organizations.TemplatesList", {
         return;
       }
 
-      const gid = orgModel.getGid();
+      const groupId = orgModel.getGroupId();
       osparc.data.Resources.getInstance().getAllPages("templates")
         .then(templates => {
-          const orgTemplates = templates.filter(template => gid in template["accessRights"]);
+          const orgTemplates = templates.filter(template => groupId in template["accessRights"]);
           orgTemplates.forEach(orgTemplate => {
             const orgTemplateCopy = osparc.utils.Utils.deepCloneObject(orgTemplate);
-            orgTemplateCopy["orgId"] = gid;
+            orgTemplateCopy["orgId"] = groupId;
             templatesModel.append(qx.data.marshal.Json.createModel(orgTemplateCopy));
           });
         });

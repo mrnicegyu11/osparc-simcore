@@ -5,6 +5,7 @@
 --constraint ./constraints.txt
 
 # intra-repo required dependencies
+--requirement ../../../packages/common-library/requirements/_base.in
 --requirement ../../../packages/models-library/requirements/_base.in
 --requirement ../../../packages/settings-library/requirements/_base.in
 
@@ -18,6 +19,7 @@ faststream
 opentelemetry-api
 opentelemetry-exporter-otlp
 opentelemetry-instrumentation-requests
+opentelemetry-instrumentation-redis
 opentelemetry-sdk
 psutil
 pydantic
@@ -28,3 +30,4 @@ repro-zipfile
 tenacity
 toolz
 tqdm
+yarl

@@ -1,6 +1,7 @@
 import sqlalchemy as sa
+from sqlalchemy.sql import expression
 
-from ._common import column_created_datetime, column_modified_datetime
+from ._common import RefActions, column_created_datetime, column_modified_datetime
 from .base import metadata
 from .workspaces import workspaces
 
@@ -34,8 +35,8 @@ folders_v2 = sa.Table(
         sa.String,
         sa.ForeignKey(
             "products.name",
-            onupdate="CASCADE",
-            ondelete="CASCADE",
+            onupdate=RefActions.CASCADE,
+            ondelete=RefActions.CASCADE,
             name="fk_new_folders_to_products_name",
         ),
         nullable=False,
@@ -45,8 +46,8 @@ folders_v2 = sa.Table(
         sa.BigInteger,
         sa.ForeignKey(
             "users.id",
-            onupdate="CASCADE",
-            ondelete="CASCADE",
+            onupdate=RefActions.CASCADE,
+            ondelete=RefActions.CASCADE,
             name="fk_folders_to_user_id",
         ),
         nullable=True,
@@ -56,8 +57,8 @@ folders_v2 = sa.Table(
         sa.BigInteger,
         sa.ForeignKey(
             workspaces.c.workspace_id,
-            onupdate="CASCADE",
-            ondelete="CASCADE",
+            onupdate=RefActions.CASCADE,
+            ondelete=RefActions.CASCADE,
             name="fk_folders_to_workspace_id",
         ),
         nullable=True,
@@ -68,10 +69,25 @@ folders_v2 = sa.Table(
         sa.ForeignKey(
             "groups.gid",
             name="fk_new_folders_to_groups_gid",
-            ondelete="SET NULL",
+            ondelete=RefActions.SET_NULL,
         ),
         nullable=True,
     ),
     column_created_datetime(timezone=True),
     column_modified_datetime(timezone=True),
+    sa.Column(
+        "trashed_at",
+        sa.DateTime(timezone=True),
+        nullable=True,
+        comment="The date and time when the folder was marked as trashed."
+        "Null if the folder has not been trashed [default].",
+    ),
+    sa.Column(
+        "trashed_explicitly",
+        sa.Boolean,
+        nullable=False,
+        server_default=expression.false(),
+        comment="Indicates whether the folder was explicitly trashed by the user (true)"
+        " or inherited its trashed status from a parent (false) [default].",
+    ),
 )

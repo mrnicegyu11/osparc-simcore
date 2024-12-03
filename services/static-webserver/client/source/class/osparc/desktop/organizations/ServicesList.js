@@ -70,7 +70,7 @@ qx.Class.define("osparc.desktop.organizations.ServicesList", {
       const servicesModel = this.__servicesModel = new qx.data.Array();
       const servicesCtrl = new qx.data.controller.List(servicesModel, servicesUIList, "name");
       servicesCtrl.setDelegate({
-        createItem: () => new osparc.desktop.organizations.SharedResourceListItem(),
+        createItem: () => new osparc.desktop.organizations.SharedResourceListItem("service"),
         bindItem: (ctrl, item, id) => {
           ctrl.bindProperty("key", "model", null, item, id);
           ctrl.bindProperty("key", "key", null, item, id);
@@ -114,19 +114,19 @@ qx.Class.define("osparc.desktop.organizations.ServicesList", {
         return;
       }
 
-      const gid = orgModel.getGid();
+      const groupId = orgModel.getGroupId();
       osparc.store.Services.getServicesLatest()
         .then(servicesLatest => {
           const orgServices = [];
           Object.keys(servicesLatest).forEach(key => {
             const serviceLatest = servicesLatest[key];
-            if (gid in serviceLatest["accessRights"]) {
+            if (groupId in serviceLatest["accessRights"]) {
               orgServices.push(serviceLatest);
             }
           });
           orgServices.forEach(orgService => {
             const orgServiceCopy = osparc.utils.Utils.deepCloneObject(orgService);
-            orgServiceCopy["orgId"] = gid;
+            orgServiceCopy["orgId"] = groupId;
             if (orgServiceCopy["thumbnail"] === null) {
               orgServiceCopy["thumbnail"] = osparc.dashboard.CardBase.PRODUCT_ICON;
             }

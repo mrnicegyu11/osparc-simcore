@@ -178,12 +178,9 @@ qx.Class.define("osparc.dashboard.Dashboard", {
       }, this);
 
       const preResourcePromises = [];
-      const store = osparc.store.Store.getInstance();
-      preResourcePromises.push(store.getAllGroupsAndMembers());
+      const groupsStore = osparc.store.Groups.getInstance();
+      preResourcePromises.push(groupsStore.fetchGroupsAndMembers());
       preResourcePromises.push(osparc.store.Services.getServicesLatest(false));
-      if (permissions.canDo("study.tag")) {
-        preResourcePromises.push(osparc.data.Resources.get("tags"));
-      }
       Promise.all(preResourcePromises)
         .then(() => {
           [

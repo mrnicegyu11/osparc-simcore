@@ -36,7 +36,7 @@ from models_library.services_resources import (
 )
 from models_library.users import UserID
 from models_library.wallets import ZERO_CREDITS, WalletInfo
-from pydantic import parse_obj_as
+from pydantic import TypeAdapter
 from servicelib.rabbitmq import (
     RabbitMQRPCClient,
     RemoteMethodNotRegisteredError,
@@ -55,9 +55,9 @@ from .....core.errors import (
 from .....models.comp_tasks import CompTaskAtDB, Image, NodeSchema
 from .....models.pricing import PricingInfo
 from .....modules.resource_usage_tracker_client import ResourceUsageTrackerClient
-from .....utils.comp_scheduler import COMPLETED_STATES
 from .....utils.computations import to_node_class
 from ....catalog import CatalogClient
+from ....comp_scheduler._utils import COMPLETED_STATES
 from ....director_v0 import DirectorV0Client
 from ...tables import NodeClass
 
@@ -89,9 +89,7 @@ async def _get_service_details(
         node.version,
         product_name,
     )
-    obj: ServiceMetaDataPublished = ServiceMetaDataPublished.construct(
-        **service_details
-    )
+    obj: ServiceMetaDataPublished = ServiceMetaDataPublished(**service_details)
     return obj
 
 
@@ -105,7 +103,7 @@ def _compute_node_requirements(
             node_defined_resources[resource_name] = node_defined_resources.get(
                 resource_name, 0
             ) + min(resource_value.limit, resource_value.reservation)
-    return NodeRequirements.parse_obj(node_defined_resources)
+    return NodeRequirements(**node_defined_resources)
 
 
 def _compute_node_boot_mode(node_resources: ServiceResourcesDict) -> BootMode:
@@ -174,7 +172,9 @@ async def _generate_task_image(
     }
     project_nodes_repo = ProjectNodesRepo(project_uuid=project_id)
     project_node = await project_nodes_repo.get(connection, node_id=node_id)
-    node_resources = parse_obj_as(ServiceResourcesDict, project_node.required_resources)
+    node_resources = TypeAdapter(ServiceResourcesDict).validate_python(
+        project_node.required_resources
+    )
     if not node_resources:
         node_resources = await catalog_client.get_service_resources(
             user_id, node.key, node.version
@@ -187,7 +187,7 @@ async def _generate_task_image(
         data.update(envs=_compute_node_envs(node_labels))
     if node_extras and node_extras.container_spec:
         data.update(command=node_extras.container_spec.command)
-    return Image.parse_obj(data)
+    return Image(**data)
 
 
 async def _get_pricing_and_hardware_infos(
@@ -287,7 +287,9 @@ async def _update_project_node_resources_from_hardware_info(
         # less memory than the machine theoretical amount
         project_nodes_repo = ProjectNodesRepo(project_uuid=project_id)
         node = await project_nodes_repo.get(connection, node_id=node_id)
-        node_resources = parse_obj_as(ServiceResourcesDict, node.required_resources)
+        node_resources = TypeAdapter(ServiceResourcesDict).validate_python(
+            node.required_resources
+        )
         if DEFAULT_SINGLE_SERVICE_NAME in node_resources:
             image_resources: ImageResources = node_resources[
                 DEFAULT_SINGLE_SERVICE_NAME
@@ -318,11 +320,11 @@ async def _update_project_node_resources_from_hardware_info(
             f"invalid EC2 type name selected {set(hardware_info.aws_ec2_instances)}."
             " TIP: adjust product configuration"
         )
-        raise ConfigurationError(msg) from exc
+        raise ConfigurationError(msg=msg) from exc
     except (
         RemoteMethodNotRegisteredError,
         RPCServerError,
-        asyncio.TimeoutError,
+        TimeoutError,
     ) as exc:
         raise ClustersKeeperNotAvailableError from exc
 
@@ -343,7 +345,7 @@ async def generate_tasks_list_from_project(
     list_comp_tasks = []
 
     unique_service_key_versions: set[ServiceKeyVersion] = {
-        ServiceKeyVersion.construct(
+        ServiceKeyVersion(
             key=node.key, version=node.version
         )  # the service key version is frozen
         for node in project.workbench.values()
@@ -362,9 +364,7 @@ async def generate_tasks_list_from_project(
 
     for internal_id, node_id in enumerate(project.workbench, 1):
         node: Node = project.workbench[node_id]
-        node_key_version = ServiceKeyVersion.construct(
-            key=node.key, version=node.version
-        )
+        node_key_version = ServiceKeyVersion(key=node.key, version=node.version)
         node_details, node_extras, node_labels = key_version_to_node_infos.get(
             node_key_version,
             (None, None, None),
@@ -430,8 +430,8 @@ async def generate_tasks_list_from_project(
         task_db = CompTaskAtDB(
             project_id=project.uuid,
             node_id=NodeID(node_id),
-            schema=NodeSchema.parse_obj(
-                node_details.dict(
+            schema=NodeSchema(
+                **node_details.model_dump(
                     exclude_unset=True, by_alias=True, include={"inputs", "outputs"}
                 )
             ),
@@ -446,9 +446,11 @@ async def generate_tasks_list_from_project(
             last_heartbeat=None,
             created=arrow.utcnow().datetime,
             modified=arrow.utcnow().datetime,
-            pricing_info=pricing_info.dict(exclude={"pricing_unit_cost"})
-            if pricing_info
-            else None,
+            pricing_info=(
+                pricing_info.model_dump(exclude={"pricing_unit_cost"})
+                if pricing_info
+                else None
+            ),
             hardware_info=hardware_info,
         )
 

@@ -5,7 +5,6 @@
 
 import asyncio
 import json
-import random
 from collections.abc import AsyncIterable
 from inspect import signature
 from pathlib import Path
@@ -23,8 +22,9 @@ from async_asgi_testclient import TestClient
 from faker import Faker
 from fastapi import FastAPI, status
 from models_library.api_schemas_dynamic_sidecar.containers import ActivityInfo
-from models_library.services import ServiceOutput
 from models_library.services_creation import CreateServiceMetricsAdditionalParams
+from models_library.services_io import ServiceOutput
+from pydantic import TypeAdapter
 from pytest_mock.plugin import MockerFixture
 from pytest_simcore.helpers.monkeypatch_envs import EnvVarsDict, setenvs_from_dict
 from servicelib.docker_constants import SUFFIX_EGRESS_PROXY_NAME
@@ -103,7 +103,7 @@ async def _start_containers(
 
     response = await test_client.post(
         f"/{API_VTAG}/containers",
-        json={"metrics_params": mock_metrics_params.dict()},
+        json={"metrics_params": mock_metrics_params.model_dump()},
     )
     assert response.status_code == status.HTTP_202_ACCEPTED, response.text
     task_id: TaskId = response.json()
@@ -266,11 +266,11 @@ def not_started_containers() -> list[str]:
 @pytest.fixture
 def mock_outputs_labels() -> dict[str, ServiceOutput]:
     return {
-        "output_port_1": ServiceOutput.parse_obj(
-            ServiceOutput.Config.schema_extra["examples"][3]
+        "output_port_1": TypeAdapter(ServiceOutput).validate_python(
+            ServiceOutput.model_config["json_schema_extra"]["examples"][3]
         ),
-        "output_port_2": ServiceOutput.parse_obj(
-            ServiceOutput.Config.schema_extra["examples"][3]
+        "output_port_2": TypeAdapter(ServiceOutput).validate_python(
+            ServiceOutput.model_config["json_schema_extra"]["examples"][3]
         ),
     }
 
@@ -303,9 +303,9 @@ async def attachable_networks_and_ids(faker: Faker) -> AsyncIterable[dict[str, s
 
 
 @pytest.fixture
-def mock_aiodocker_containers_get(mocker: MockerFixture) -> int:
+def mock_aiodocker_containers_get(mocker: MockerFixture, faker: Faker) -> int:
     """raises a DockerError with a random HTTP status which is also returned"""
-    mock_status_code = random.randint(1, 999)  # noqa: S311
+    mock_status_code = faker.random_int(1, 999)
 
     async def mock_get(*args: str, **kwargs: Any) -> None:
         raise aiodocker.exceptions.DockerError(
@@ -366,12 +366,12 @@ def test_ensure_api_vtag_is_v1():
 async def test_start_same_space_twice(compose_spec: str, test_client: TestClient):
     settings = test_client.application.state.settings
 
-    settings_1 = settings.copy(
+    settings_1 = settings.model_copy(
         update={"DYNAMIC_SIDECAR_COMPOSE_NAMESPACE": "test_name_space_1"}, deep=True
     )
     await _assert_compose_spec_pulled(compose_spec, settings_1)
 
-    settings_2 = settings.copy(
+    settings_2 = settings.model_copy(
         update={"DYNAMIC_SIDECAR_COMPOSE_NAMESPACE": "test_name_space_2"}, deep=True
     )
     await _assert_compose_spec_pulled(compose_spec, settings_2)
@@ -480,7 +480,7 @@ async def test_container_docker_error(
     def _expected_error_string(status_code: int) -> dict[str, Any]:
         return {
             "errors": [
-                f"An unexpected Docker error occurred status_code={status_code}, message='aiodocker_mocked_error'"
+                f"An unexpected Docker error occurred status_code={status_code}, message=aiodocker_mocked_error"
             ]
         }
 
@@ -576,7 +576,7 @@ async def test_container_create_outputs_dirs(
     assert mock_event_filter_enqueue.call_count == 0
 
     json_outputs_labels = {
-        k: v.dict(by_alias=True) for k, v in mock_outputs_labels.items()
+        k: v.model_dump(by_alias=True) for k, v in mock_outputs_labels.items()
     }
     response = await test_client.post(
         f"/{API_VTAG}/containers/ports/outputs/dirs",
@@ -750,7 +750,10 @@ async def test_containers_activity_command_failed(
 ):
     response = await test_client.get(f"/{API_VTAG}/containers/activity")
     assert response.status_code == 200, response.text
-    assert response.json() == ActivityInfo(seconds_inactive=_INACTIVE_FOR_LONG_TIME)
+    assert (
+        response.json()
+        == ActivityInfo(seconds_inactive=_INACTIVE_FOR_LONG_TIME).model_dump()
+    )
 
 
 async def test_containers_activity_no_inactivity_defined(
@@ -773,7 +776,7 @@ def mock_inactive_since_command_response(
 ) -> None:
     mocker.patch(
         "simcore_service_dynamic_sidecar.api.rest.containers.run_command_in_container",
-        return_value=activity_response.json(),
+        return_value=activity_response.model_dump_json(),
     )
 
 
@@ -786,7 +789,7 @@ async def test_containers_activity_inactive_since(
 ):
     response = await test_client.get(f"/{API_VTAG}/containers/activity")
     assert response.status_code == 200, response.text
-    assert response.json() == activity_response
+    assert response.json() == activity_response.model_dump()
 
 
 @pytest.fixture
@@ -805,4 +808,7 @@ async def test_containers_activity_unexpected_response(
 ):
     response = await test_client.get(f"/{API_VTAG}/containers/activity")
     assert response.status_code == 200, response.text
-    assert response.json() == ActivityInfo(seconds_inactive=_INACTIVE_FOR_LONG_TIME)
+    assert (
+        response.json()
+        == ActivityInfo(seconds_inactive=_INACTIVE_FOR_LONG_TIME).model_dump()
+    )

@@ -75,6 +75,7 @@ def app_environment(
             "INVITATIONS_DEFAULT_PRODUCT": default_product,
             "INVITATIONS_USERNAME": fake_user_name,
             "INVITATIONS_PASSWORD": fake_password,
+            "INVITATIONS_TRACING": "null",
         },
     )
 
@@ -109,4 +110,4 @@ def invitation_data(
     if product:
         kwargs["product"] = product
 
-    return InvitationInputs.parse_obj(kwargs)
+    return InvitationInputs.model_validate(kwargs)

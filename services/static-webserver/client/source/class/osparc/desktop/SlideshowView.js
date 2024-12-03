@@ -24,7 +24,7 @@ qx.Class.define("osparc.desktop.SlideshowView", {
     this._setLayout(new qx.ui.layout.VBox());
 
     const slideshowToolbar = this.__slideshowToolbar = new osparc.desktop.SlideshowToolbar().set({
-      backgroundColor: "tab_navigation_bar_background_color"
+      backgroundColor: "workbench-view-navbar"
     });
 
     const collapseWithUserMenu = this.__collapseWithUserMenu = new osparc.desktop.CollapseWithUserMenu();
@@ -456,6 +456,7 @@ qx.Class.define("osparc.desktop.SlideshowView", {
       if (preferencesSettings.getConfirmDeleteNode()) {
         const msg = this.tr("Are you sure you want to delete node?");
         const win = new osparc.ui.window.Confirmation(msg).set({
+          caption: this.tr("Delete"),
           confirmText: this.tr("Delete"),
           confirmAction: "delete"
         });

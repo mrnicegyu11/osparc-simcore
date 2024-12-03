@@ -1,5 +1,3 @@
-# pylint:disable=no-member
-
 import logging
 import stat
 from asyncio import CancelledError, Task, create_task, get_event_loop
@@ -29,7 +27,11 @@ class _LoggingEventHandler(SafeFileSystemEventHandler):
     def event_handler(self, event: FileSystemEvent) -> None:
         # NOTE: runs in the created process
 
-        file_path = Path(event.src_path)
+        file_path = Path(
+            event.src_path.decode()
+            if isinstance(event.src_path, bytes)
+            else event.src_path
+        )
         with suppress(FileNotFoundError):
             file_stat = file_path.stat()
             logger.info(
@@ -70,7 +72,7 @@ class _LoggingEventHandlerProcess:
             self._process = aioprocessing.AioProcess(
                 target=self._process_worker, daemon=True
             )
-            self._process.start()
+            self._process.start()  # pylint:disable=no-member
 
     def _stop_process(self) -> None:
         with log_context(
@@ -78,12 +80,12 @@ class _LoggingEventHandlerProcess:
             logging.DEBUG,
             f"{_LoggingEventHandlerProcess.__name__} stop_process",
         ):
-            self._stop_queue.put(None)
+            self._stop_queue.put(None)  # pylint:disable=no-member
 
             if self._process:
                 # force stop the process
-                self._process.kill()
-                self._process.join()
+                self._process.kill()  # pylint:disable=no-member
+                self._process.join()  # pylint:disable=no-member
                 self._process = None
 
             # cleanup whatever remains
@@ -111,7 +113,7 @@ class _LoggingEventHandlerProcess:
             )
             observer.start()
 
-            while self._stop_queue.qsize() == 0:
+            while self._stop_queue.qsize() == 0:  # pylint:disable=no-member
                 # NOTE: watchdog handles events internally every 1 second.
                 # While doing so it will block this thread briefly.
                 # Health check delivery may be delayed.
@@ -173,9 +175,9 @@ class LoggingEventHandlerObserver:
             heart_beat_count = 0
             while True:
                 try:
-                    self._health_check_queue.get_nowait()
+                    self._health_check_queue.get_nowait()  # pylint:disable=no-member
                     heart_beat_count += 1
-                except Empty:  # noqa: PERF203
+                except Empty:
                     break
 
             if heart_beat_count == 0:

@@ -225,15 +225,12 @@ qx.Class.define("osparc.desktop.StudyEditor", {
         }
       }
 
-      osparc.data.Resources.get("organizations")
-        .then(() => {
-          if (osparc.data.model.Study.canIWrite(study.getAccessRights())) {
-            this.__startAutoSaveTimer();
-          } else {
-            const msg = this.self().READ_ONLY_TEXT;
-            osparc.FlashMessenger.getInstance().logAs(msg, "WARNING");
-          }
-        });
+      if (osparc.data.model.Study.canIWrite(study.getAccessRights())) {
+        this.__startAutoSaveTimer();
+      } else {
+        const msg = this.self().READ_ONLY_TEXT;
+        osparc.FlashMessenger.getInstance().logAs(msg, "WARNING");
+      }
 
       const pageContext = study.getUi().getMode();
       switch (pageContext) {
@@ -598,6 +595,7 @@ qx.Class.define("osparc.desktop.StudyEditor", {
           this.getStudyLogger().info(null, "The pipeline is up-to-date");
           const msg = this.tr("The pipeline is up-to-date. Do you want to re-run it?");
           const win = new osparc.ui.window.Confirmation(msg).set({
+            caption: this.tr("Re-run"),
             confirmText: this.tr("Run"),
             confirmAction: "create"
           });
