@@ -9,12 +9,12 @@ exporters:
   otlphttp/swarm-jaeger:
     endpoint: ${TRACING_OPENTELEMETRY_COLLECTOR_EXPORTER_ENDPOINT}  # Adjust to your Jaeger endpoint
   otlphttp/k8s-signoz:
-    endpoint: https://opentelemetrycollector.signoz.monitoring.k8s.osparc.local:443
+    endpoint: https://admin:testertestertester@opentelemetrycollector.signoz.monitoring.k8s.osparc.local:443
     tls:
       insecure: false
       insecure_skip_verify: true
   otlphttp/k8s-jaeger:
-    endpoint: https://jaeger.monitoring.k8s.osparc.local:443
+    endpoint: https://admin:testertestertester@jaeger.monitoring.k8s.osparc.local:443/api/traces
     tls:
       insecure: false
       insecure_skip_verify: true
@@ -26,7 +26,7 @@ service:
       processors: [batch,probabilistic_sampler]
     traces/k8s:
       receivers: [otlp]
-      exporters: [otlphttp/k8s-signoz]
+      exporters: [otlphttp/k8s-signoz,otlphttp/k8s-jaeger]
       processors: [batch,probabilistic_sampler]
 processors:
   batch:

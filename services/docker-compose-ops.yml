@@ -113,6 +113,7 @@ services:
       - simcore_default
     extra_hosts:
       - "opentelemetrycollector.signoz.monitoring.k8s.osparc.local:172.17.0.1"
+      - "jaeger.monitoring.k8s.osparc.local:172.17.0.1"
     environment:
       TRACING_OPENTELEMETRY_COLLECTOR_BATCH_SIZE: ${TRACING_OPENTELEMETRY_COLLECTOR_BATCH_SIZE}
       TRACING_OPENTELEMETRY_COLLECTOR_SAMPLING_PERCENTAGE: ${TRACING_OPENTELEMETRY_COLLECTOR_SAMPLING_PERCENTAGE}
