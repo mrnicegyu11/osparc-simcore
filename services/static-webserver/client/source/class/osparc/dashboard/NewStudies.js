@@ -36,18 +36,17 @@ qx.Class.define("osparc.dashboard.NewStudies", {
     });
     this._add(this.__flatList);
 
-    osparc.data.Resources.get("templates")
+    osparc.store.Templates.getTemplates()
       .then(templates => {
-        const displayTemplates = newButtonsInfo.filter(newButtonInfo => {
+        this.__newStudies = newButtonsInfo.filter(newButtonInfo => {
           if (newButtonInfo.showDisabled) {
             return true;
           }
           return templates.find(t => t.name === newButtonInfo.expectedTemplateLabel);
         });
-        this.__newStudies = displayTemplates;
-      })
-      .catch(console.error)
-      .finally(() => this.fireEvent("templatesLoaded"));
+
+        this.setGroupBy("category");
+      });
   },
 
   properties: {
@@ -60,7 +59,6 @@ qx.Class.define("osparc.dashboard.NewStudies", {
   },
 
   events: {
-    "templatesLoaded": "qx.event.type.Event",
     "newStudyClicked": "qx.event.type.Data",
   },
 

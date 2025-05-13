@@ -86,9 +86,8 @@ qx.Class.define("osparc.desktop.organizations.TemplatesList", {
           item.subscribeToFilterGroup("organizationTemplatesList");
           item.addListener("openMoreInfo", e => {
             const templateId = e.getData()["key"];
-            osparc.data.Resources.get("templates")
-              .then(templates => {
-                const templateData = templates.find(t => t.uuid === templateId);
+            osparc.store.Templates.getTemplate(templateId)
+              .then(templateData => {
                 if (templateData) {
                   templateData["resourceType"] = "template";
                   const resourceDetails = new osparc.dashboard.ResourceDetails(templateData).set({
@@ -113,9 +112,9 @@ qx.Class.define("osparc.desktop.organizations.TemplatesList", {
         return;
       }
 
-      const groupId = orgModel.getGroupId();
-      osparc.data.Resources.getInstance().getAllPages("templates")
+      osparc.store.Templates.getTemplates()
         .then(templates => {
+          const groupId = orgModel.getGroupId();
           const orgTemplates = templates.filter(template => groupId in template["accessRights"]);
           orgTemplates.forEach(orgTemplate => {
             const orgTemplateCopy = osparc.utils.Utils.deepCloneObject(orgTemplate);

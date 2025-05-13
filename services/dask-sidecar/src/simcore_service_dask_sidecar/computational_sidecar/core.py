@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import os
 import socket
@@ -12,6 +11,7 @@ from typing import Final, cast
 from uuid import uuid4
 
 from aiodocker import Docker
+from common_library.json_serialization import json_dumps
 from dask_task_models_library.container_tasks.docker import DockerBasicAuth
 from dask_task_models_library.container_tasks.errors import ServiceRuntimeError
 from dask_task_models_library.container_tasks.io import FileUrl, TaskOutputData
@@ -25,9 +25,9 @@ from servicelib.progress_bar import ProgressBarData
 from settings_library.s3 import S3Settings
 from yarl import URL
 
-from ..dask_utils import TaskPublisher
-from ..file_utils import pull_file_from_remote, push_file_to_remote
-from ..settings import Settings
+from ..settings import ApplicationSettings
+from ..utils.dask import TaskPublisher
+from ..utils.files import pull_file_from_remote, push_file_to_remote
 from .docker_utils import (
     create_container_config,
     get_computational_shared_data_mount_point,
@@ -95,7 +95,7 @@ class ComputationalSidecar:
         # NOTE: temporary solution until new version is created
         for task in download_tasks:
             await task
-        input_data_file.write_text(json.dumps(local_input_data_file))
+        input_data_file.write_text(json_dumps(local_input_data_file))
 
         await self._publish_sidecar_log("All the input data were downloaded.")
 
@@ -160,7 +160,7 @@ class ComputationalSidecar:
     async def _publish_sidecar_log(
         self, log: LogMessageStr, log_level: LogLevelInt = logging.INFO
     ) -> None:
-        self.task_publishers.publish_logs(
+        await self.task_publishers.publish_logs(
             message=f"[sidecar] {log}", log_level=log_level
         )
 
@@ -172,16 +172,20 @@ class ComputationalSidecar:
         # NOTE: this is for tracing purpose
         _logger.info("Running task owner: %s", self.task_parameters.task_owner)
 
-        settings = Settings.create_from_envs()
+        settings = ApplicationSettings.create_from_envs()
         run_id = f"{uuid4()}"
-        async with Docker() as docker_client, TaskSharedVolumes(
-            Path(f"{settings.SIDECAR_COMP_SERVICES_SHARED_FOLDER}/{run_id}")
-        ) as task_volumes, ProgressBarData(
-            num_steps=3,
-            step_weights=[5 / 100, 90 / 100, 5 / 100],
-            progress_report_cb=self.task_publishers.publish_progress,
-            description="running",
-        ) as progress_bar:
+        async with (
+            Docker() as docker_client,
+            TaskSharedVolumes(
+                Path(f"{settings.SIDECAR_COMP_SERVICES_SHARED_FOLDER}/{run_id}")
+            ) as task_volumes,
+            ProgressBarData(
+                num_steps=3,
+                step_weights=[5 / 100, 90 / 100, 5 / 100],
+                progress_report_cb=self.task_publishers.publish_progress,
+                description="running",
+            ) as progress_bar,
+        ):
             # PRE-PROCESSING
             await pull_image(
                 docker_client,
@@ -216,24 +220,28 @@ class ComputationalSidecar:
             )
             await progress_bar.update()  # NOTE:  (1 step weighting 5%)
             # PROCESSING (1 step weighted 90%)
-            async with managed_container(
-                docker_client,
-                config,
-                name=f"{self.task_parameters.image.split(sep='/')[-1]}_{run_id}",
-            ) as container, progress_bar.sub_progress(
-                100, description="processing"
-            ) as processing_progress_bar, managed_monitor_container_log_task(
-                container=container,
-                progress_regexp=image_labels.get_progress_regexp(),
-                service_key=self.task_parameters.image,
-                service_version=self.task_parameters.tag,
-                task_publishers=self.task_publishers,
-                integration_version=image_labels.get_integration_version(),
-                task_volumes=task_volumes,
-                log_file_url=self.log_file_url,
-                log_publishing_cb=self._publish_sidecar_log,
-                s3_settings=self.s3_settings,
-                progress_bar=processing_progress_bar,
+            async with (
+                managed_container(
+                    docker_client,
+                    config,
+                    name=f"{self.task_parameters.image.split(sep='/')[-1]}_{run_id}",
+                ) as container,
+                progress_bar.sub_progress(
+                    100, description="processing"
+                ) as processing_progress_bar,
+                managed_monitor_container_log_task(
+                    container=container,
+                    progress_regexp=image_labels.get_progress_regexp(),
+                    service_key=self.task_parameters.image,
+                    service_version=self.task_parameters.tag,
+                    task_publishers=self.task_publishers,
+                    integration_version=image_labels.get_integration_version(),
+                    task_volumes=task_volumes,
+                    log_file_url=self.log_file_url,
+                    log_publishing_cb=self._publish_sidecar_log,
+                    s3_settings=self.s3_settings,
+                    progress_bar=processing_progress_bar,
+                ),
             ):
                 await container.start()
                 await self._publish_sidecar_log(

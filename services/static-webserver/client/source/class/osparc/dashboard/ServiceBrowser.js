@@ -37,6 +37,11 @@ qx.Class.define("osparc.dashboard.ServiceBrowser", {
 
     // overridden
     initResources: function() {
+      if (this._resourcesInitialized) {
+        return;
+      }
+      this._resourcesInitialized = true;
+
       this._resourcesList = [];
       osparc.store.Services.getServicesLatest()
         .then(services => {
@@ -66,7 +71,7 @@ qx.Class.define("osparc.dashboard.ServiceBrowser", {
       const excludeFrontend = true;
       const excludeDeprecated = true
       osparc.store.Services.getServicesLatestList(excludeFrontend, excludeDeprecated)
-        .then(servicesList => this.__setServicesToList(servicesList));
+        .then(servicesList => this.__setServicesToList(servicesList.filter(service => service !== null)));
     },
 
     _updateServiceData: function(serviceData) {

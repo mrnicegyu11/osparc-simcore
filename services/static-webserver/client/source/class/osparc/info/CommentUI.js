@@ -41,7 +41,7 @@ qx.Class.define("osparc.info.CommentUI", {
     __comment: null,
 
     __isMyComment: function() {
-      return this.__comment && osparc.auth.Data.getInstance().getUserId() === this.__comment["user_id"];
+      return this.__comment && osparc.auth.Data.getInstance().getGroupId() === this.__comment["userGroupId"];
     },
 
     _createChildControlImpl: function(id) {
@@ -65,6 +65,7 @@ qx.Class.define("osparc.info.CommentUI", {
           control = new qx.ui.container.Composite(new qx.ui.layout.HBox(5).set({
             alignX: this.__isMyComment() ? "right" : "left"
           }));
+          control.addAt(new qx.ui.basic.Label("-"), 1);
           this._add(control, {
             row: 0,
             column: 1
@@ -74,17 +75,16 @@ qx.Class.define("osparc.info.CommentUI", {
           control = new qx.ui.basic.Label().set({
             font: "text-12"
           });
-          this.getChildControl("header-layout").addAt(control, 0);
+          this.getChildControl("header-layout").addAt(control, this.__isMyComment() ? 2 : 0);
           break;
         case "last-updated":
           control = new qx.ui.basic.Label().set({
             font: "text-12"
           });
-          this.getChildControl("header-layout").addAt(control, 1);
+          this.getChildControl("header-layout").addAt(control, this.__isMyComment() ? 0 : 2);
           break;
         case "comment-content":
           control = new osparc.ui.markdown.Markdown().set({
-            backgroundColor: "background-main-2",
             decorator: "rounded",
             noMargin: true,
             paddingLeft: 8,
@@ -124,9 +124,9 @@ qx.Class.define("osparc.info.CommentUI", {
       lastUpdate.setValue(date2);
 
       const commentContent = this.getChildControl("comment-content");
-      commentContent.setValue(this.__comment["contents"]);
+      commentContent.setValue(this.__comment["content"]);
 
-      const user = osparc.store.Groups.getInstance().getUserByUserId(this.__comment["user_id"])
+      const user = osparc.store.Groups.getInstance().getUserByGroupId(this.__comment["userGroupId"])
       if (user) {
         thumbnail.setSource(user.getThumbnail());
         userName.setValue(user.getLabel());

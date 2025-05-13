@@ -305,18 +305,52 @@ qx.Class.define("osparc.data.Resources", {
           },
         }
       },
-      "studyComments": {
-        useCache: true,
-        idField: "uuid",
+      "conversations": {
+        useCache: false,
+        endpoints: {
+          addConversation: {
+            method: "POST",
+            url: statics.API + "/projects/{studyId}/conversations"
+          },
+          getConversationsPage: {
+            method: "GET",
+            url: statics.API + "/projects/{studyId}/conversations?offset={offset}&limit={limit}"
+          },
+          renameConversation: {
+            method: "PUT",
+            url: statics.API + "/projects/{studyId}/conversations/{conversationId}"
+          },
+          deleteConversation: {
+            method: "DELETE",
+            url: statics.API + "/projects/{studyId}/conversations/{conversationId}"
+          },
+          addMessage: {
+            method: "POST",
+            url: statics.API + "/projects/{studyId}/conversations/{conversationId}/messages"
+          },
+          getMessagesPage: {
+            method: "GET",
+            url: statics.API + "/projects/{studyId}/conversations/{conversationId}/messages?offset={offset}&limit={limit}"
+          },
+        }
+      },
+      "jobs": {
+        useCache: false, // handled in osparc.store.Jobs
         endpoints: {
           getPage: {
             method: "GET",
-            url: statics.API + "/projects/{studyId}/comments?offset={offset}&limit={limit}"
+            // url: statics.API + "/computations/-/iterations/latest?offset={offset}&limit={limit}&order_by={orderBy}"
+            url: statics.API + "/computations/-/iterations/latest?offset={offset}&limit={limit}&order_by=%7B%22field%22:%22submitted_at%22,%22direction%22:%22desc%22%7D"
           },
-          addComment: {
-            method: "POST",
-            url: statics.API + "/projects/{studyId}/comments"
-          }
+        }
+      },
+      "subJobs": {
+        useCache: false, // handled in osparc.store.Jobs
+        endpoints: {
+          getPage: {
+            method: "GET",
+            url: statics.API + "/computations/{studyId}/iterations/latest/tasks?offset={offset}&limit={limit}"
+          },
         }
       },
       "folders": {
@@ -553,6 +587,18 @@ qx.Class.define("osparc.data.Resources", {
         }
       },
       /*
+       * FUNCTIONS
+       */
+      "functions": {
+        useCache: false,
+        endpoints: {
+          getPage: {
+            method: "POST",
+            url: statics.API + "/functions"
+          }
+        }
+      },
+      /*
        * TASKS
        */
       "tasks": {
@@ -561,6 +607,10 @@ qx.Class.define("osparc.data.Resources", {
           get: {
             method: "GET",
             url: statics.API + "/tasks"
+          },
+          delete: {
+            method: "DELETE",
+            url: statics.API + "/tasks/{taskId}"
           }
         }
       },

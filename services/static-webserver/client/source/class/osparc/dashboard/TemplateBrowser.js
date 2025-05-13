@@ -18,33 +18,40 @@
 qx.Class.define("osparc.dashboard.TemplateBrowser", {
   extend: osparc.dashboard.ResourceBrowserBase,
 
-  construct: function() {
+  construct: function(templateType = null) {
     this._resourceType = "template";
+    this.__templateType = templateType;
+
     this.base(arguments);
   },
 
   members: {
+    __templateType: null,
     __updateAllButton: null,
 
     // overridden
     initResources: function() {
-      this._resourcesList = [];
-      this.getChildControl("resources-layout");
-      this.reloadResources();
-      this.__attachEventHandlers();
-      this._hideLoadingPage();
+      if (this._resourcesInitialized) {
+        return;
+      }
+      this._resourcesInitialized = true;
+
+      osparc.store.Templates.getTemplates()
+        .then(() => {
+          this._resourcesList = [];
+          this.getChildControl("resources-layout");
+          this.reloadResources();
+          this.__attachEventHandlers();
+          this._hideLoadingPage();
+        });
     },
 
-    reloadResources: function() {
+    reloadResources: function(useCache = true) {
       if (osparc.data.Permissions.getInstance().canDo("studies.templates.read")) {
-        this.__reloadTemplates();
+        this.__reloadTemplates(useCache);
       } else {
         this.__setResourcesToList([]);
       }
-    },
-
-    invalidateTemplates: function() {
-      osparc.store.Store.getInstance().invalidate("templates");
     },
 
     __attachEventHandlers: function() {
@@ -74,15 +81,17 @@ qx.Class.define("osparc.dashboard.TemplateBrowser", {
       }
     },
 
-    __reloadTemplates: function() {
+    __reloadTemplates: function(useCache) {
       this.__tasksToCards();
 
-      osparc.data.Resources.getInstance().getAllPages("templates")
-        .then(templates => this.__setResourcesToList(templates))
-        .catch(err => {
-          console.error(err);
-          this.__setResourcesToList([]);
-        });
+      if (useCache) {
+        osparc.store.Templates.getTemplates()
+          .then(templates => this.__setResourcesToList(templates));
+      } else {
+        osparc.store.Templates.getTemplates(useCache)
+          .then(templates => this.__setResourcesToList(templates))
+          .catch(() => this.__setResourcesToList([]));
+      }
     },
 
     _updateTemplateData: function(templateData) {
@@ -97,7 +106,7 @@ qx.Class.define("osparc.dashboard.TemplateBrowser", {
 
     __setResourcesToList: function(templatesList) {
       templatesList.forEach(template => template["resourceType"] = "template");
-      this._resourcesList = templatesList;
+      this._resourcesList = templatesList.filter(template => osparc.study.Utils.extractTemplateType(template) === this.__templateType);
       this._reloadCards();
     },
 

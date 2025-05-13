@@ -44,7 +44,6 @@ from servicelib.rabbitmq.rpc_interfaces.webserver.licenses.licensed_items import
 from servicelib.rabbitmq.rpc_interfaces.webserver.licenses.licensed_items import (
     release_licensed_item_for_wallet as _release_licensed_item_for_wallet,
 )
-from simcore_service_api_server.models.api_resources import RelativeResourceName
 
 from ..exceptions.backend_errors import (
     CanNotCheckoutServiceIsNotRunningError,
@@ -52,6 +51,7 @@ from ..exceptions.backend_errors import (
     LicensedItemCheckoutNotFoundError,
 )
 from ..exceptions.service_errors_utils import service_exception_mapper
+from ..models.api_resources import RelativeResourceName
 from ..models.pagination import Page, PaginationParams
 from ..models.schemas.model_adapter import (
     LicensedItemCheckoutGet,
@@ -217,6 +217,24 @@ class WbApiRpcClient(SingletonInAppStateMixin):
             user_id=user_id,
             project_uuid=project_uuid,
             job_parent_resource_name=job_parent_resource_name,
+        )
+
+    async def list_projects_marked_as_jobs(
+        self,
+        *,
+        product_name: ProductName,
+        user_id: UserID,
+        offset: int = 0,
+        limit: int = 50,
+        job_parent_resource_name_prefix: str | None = None,
+    ):
+        return await projects_rpc.list_projects_marked_as_jobs(
+            rpc_client=self._client,
+            product_name=product_name,
+            user_id=user_id,
+            offset=offset,
+            limit=limit,
+            job_parent_resource_name_prefix=job_parent_resource_name_prefix,
         )
 
 

@@ -205,6 +205,13 @@ qx.Class.define("osparc.study.Utils", {
       return pollTasks.createPollingTask(fetchPromise)
     },
 
+    extractTemplateType: function(templateData) {
+      if (templateData && templateData["ui"] && templateData["ui"]["templateType"]) {
+        return templateData["ui"]["templateType"];
+      }
+      return null;
+    },
+
     isAnyLinkedNodeMissing: function(studyData) {
       const existingNodeIds = Object.keys(studyData["workbench"]);
       const linkedNodeIds = osparc.data.model.Workbench.getLinkedNodeIds(studyData["workbench"]);
@@ -221,6 +228,53 @@ qx.Class.define("osparc.study.Utils", {
         });
       });
       return Array.from(services);
+    },
+
+    extractFilePickers: function(workbench) {
+      const parameters = Object.values(workbench).filter(srv => srv["key"].includes("simcore/services/frontend/file-picker"));
+      return parameters;
+    },
+
+    extractParameters: function(workbench) {
+      const parameters = Object.values(workbench).filter(srv => osparc.data.model.Node.isParameter(srv));
+      return parameters;
+    },
+
+    extractFunctionableParameters: function(workbench) {
+      // - for now, only float types are allowed
+      const parameters = Object.values(workbench).filter(srv => osparc.data.model.Node.isParameter(srv) && srv["key"].includes("parameter/number"));
+      return parameters;
+    },
+
+    extractProbes: function(workbench) {
+      const parameters = Object.values(workbench).filter(srv => osparc.data.model.Node.isProbe(srv));
+      return parameters;
+    },
+
+    extractFunctionableProbes: function(workbench) {
+      // - for now, only float types are allowed
+      const parameters = Object.values(workbench).filter(srv => osparc.data.model.Node.isProbe(srv) && srv["key"].includes("probe/number"));
+      return parameters;
+    },
+
+    canCreateFunction: function(workbench) {
+      if (!osparc.store.StaticInfo.getInstance().isDevFeaturesEnabled()) {
+        return false;
+      }
+
+      // in order to create a function, the pipeline needs:
+      // - at least one parameter (or file-picker (file type parameter))
+      // - at least one probe
+
+      // const filePickers = osparc.study.Utils.extractFilePickers(workbench);
+      // const parameters = osparc.study.Utils.extractParameters(workbench);
+      // const probes = osparc.study.Utils.extractProbes(workbench);
+      // return (filePickers.length + parameters.length) && probes.length;
+
+      // - for now, only float types are allowed
+      const parameters = osparc.study.Utils.extractFunctionableParameters(workbench);
+      const probes = osparc.study.Utils.extractFunctionableProbes(workbench);
+      return parameters.length && probes.length;
     },
 
     getCantExecuteServices: function(studyServices = []) {
@@ -382,10 +436,8 @@ qx.Class.define("osparc.study.Utils", {
                 }
                 resolve(defaultIcon);
               });
-          } else if (wbServices.length > 1) {
-            resolve("osparc/icons/diagram.png");
           } else {
-            resolve(defaultIcon);
+            resolve("osparc/icons/diagram.png");
           }
         }
       });

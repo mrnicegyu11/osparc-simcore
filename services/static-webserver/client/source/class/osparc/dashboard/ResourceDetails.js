@@ -333,9 +333,10 @@ qx.Class.define("osparc.dashboard.ResourceDetails", {
         this.__getBillingPage,
         this.__getServicesUpdatePage,
         this.__getServicesBootOptionsPage,
-        this.__getCommentsPage,
+        this.__getConversationsPage,
         this.__getPermissionsPage,
         this.__getSaveAsTemplatePage,
+        this.__getCreateFunctionsPage,
         this.__getTagsPage,
         this.__getQualityPage,
         this.__getClassifiersPage,
@@ -509,27 +510,21 @@ qx.Class.define("osparc.dashboard.ResourceDetails", {
       return page;
     },
 
-    __getCommentsPage: function() {
+    __getConversationsPage: function() {
       const resourceData = this.__resourceData;
       if (osparc.utils.Resources.isService(resourceData)) {
         return null;
       }
 
-      const id = "Comments";
-      const title = this.tr("Comments");
+      const id = "Conversations";
+      const title = this.tr("Conversations");
       const iconSrc = "@FontAwesome5Solid/comments/22";
       const page = new osparc.dashboard.resources.pages.BasePage(title, iconSrc, id);
       this.__addOpenButton(page);
 
       const lazyLoadContent = () => {
-        const commentsList = new osparc.info.CommentsList(resourceData["uuid"]);
-        page.addToContent(commentsList);
-        if (osparc.data.model.Study.canIWrite(resourceData["accessRights"])) {
-          const addComment = new osparc.info.CommentAdd(resourceData["uuid"]);
-          addComment.setPaddingLeft(10);
-          addComment.addListener("commentAdded", () => commentsList.fetchComments());
-          page.addToFooter(addComment);
-        }
+        const conversations = new osparc.study.Conversations(resourceData);
+        page.addToContent(conversations);
       }
       page.addListenerOnce("appear", lazyLoadContent, this);
 
@@ -545,23 +540,23 @@ qx.Class.define("osparc.dashboard.ResourceDetails", {
 
       const lazyLoadContent = () => {
         const resourceData = this.__resourceData;
-        let permissionsView = null;
+        let collaboratorsView = null;
         if (osparc.utils.Resources.isService(resourceData)) {
-          permissionsView = new osparc.share.CollaboratorsService(resourceData);
-          permissionsView.addListener("updateAccessRights", e => {
+          collaboratorsView = new osparc.share.CollaboratorsService(resourceData);
+          collaboratorsView.addListener("updateAccessRights", e => {
             const updatedData = e.getData();
             if (osparc.utils.Resources.isService(resourceData)) {
               this.fireDataEvent("updateService", updatedData);
             }
           }, this);
         } else {
-          permissionsView = new osparc.share.CollaboratorsStudy(resourceData);
+          collaboratorsView = new osparc.share.CollaboratorsStudy(resourceData);
           if (osparc.utils.Resources.isStudy(resourceData)) {
-            permissionsView.getChildControl("study-link").show();
+            collaboratorsView.getChildControl("study-link").show();
           } else if (osparc.utils.Resources.isTemplate(resourceData)) {
-            permissionsView.getChildControl("template-link").show();
+            collaboratorsView.getChildControl("template-link").show();
           }
-          permissionsView.addListener("updateAccessRights", e => {
+          collaboratorsView.addListener("updateAccessRights", e => {
             const updatedData = e.getData();
             if (osparc.utils.Resources.isStudy(resourceData)) {
               this.fireDataEvent("updateStudy", updatedData);
@@ -570,7 +565,7 @@ qx.Class.define("osparc.dashboard.ResourceDetails", {
             }
           }, this);
         }
-        page.addToContent(permissionsView);
+        page.addToContent(collaboratorsView);
       }
       page.addListenerOnce("appear", lazyLoadContent, this);
 
@@ -694,7 +689,7 @@ qx.Class.define("osparc.dashboard.ResourceDetails", {
 
       const id = "ServicesUpdate";
       const title = this.tr("Services Updates");
-      const iconSrc = "@MaterialIcons/update/22";
+      const iconSrc = "@MaterialIcons/update/24";
       const page = this.__servicesUpdatePage = new osparc.dashboard.resources.pages.BasePage(title, iconSrc, id);
       this.__addOpenButton(page);
 
@@ -807,6 +802,29 @@ qx.Class.define("osparc.dashboard.ResourceDetails", {
         return page;
       }
       return null;
+    },
+
+    __getCreateFunctionsPage: function() {
+      if (!osparc.utils.Resources.isStudy(this.__resourceData)) {
+        return null;
+      }
+
+      if (!osparc.study.Utils.canCreateFunction(this.__resourceData["workbench"])) {
+        return null;
+      }
+
+      const id = "CreateFunction";
+      const iconSrc = "@MaterialIcons/functions/24";
+      const title = this.tr("Create Function");
+      const page = new osparc.dashboard.resources.pages.BasePage(title, iconSrc, id);
+      const createFunction = new osparc.study.CreateFunction(this.__resourceData);
+      const createFunctionButton = createFunction.getCreateFunctionButton();
+      osparc.dashboard.resources.pages.BasePage.decorateHeaderButton(createFunctionButton);
+      const toolbar = this.self().createToolbar();
+      toolbar.add(createFunctionButton);
+      page.addToHeader(toolbar);
+      page.addToContent(createFunction);
+      return page;
     }
   }
 });

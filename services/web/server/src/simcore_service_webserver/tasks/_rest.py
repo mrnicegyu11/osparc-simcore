@@ -19,10 +19,12 @@ from models_library.api_schemas_rpc_async_jobs.async_jobs import (
     AsyncJobNameData,
 )
 from models_library.api_schemas_storage import STORAGE_RPC_NAMESPACE
-from models_library.generics import Envelope
 from pydantic import BaseModel
 from servicelib.aiohttp import status
-from servicelib.aiohttp.client_session import get_client_session
+from servicelib.aiohttp.long_running_tasks.server import (
+    get_task_context,
+    get_tasks_manager,
+)
 from servicelib.aiohttp.requests_validation import (
     parse_request_path_parameters_as,
 )
@@ -31,6 +33,7 @@ from servicelib.rabbitmq.rpc_interfaces.async_jobs import async_jobs
 
 from .._meta import API_VTAG
 from ..login.decorators import login_required
+from ..long_running_tasks import webserver_request_context_decorator
 from ..models import RequestContext
 from ..rabbitmq import get_rabbitmq_rpc_client
 from ..security.decorators import permission_required
@@ -51,23 +54,11 @@ _task_prefix: Final[str] = f"/{API_VTAG}/tasks"
 @login_required
 @permission_required("storage.files.*")
 @handle_export_data_exceptions
+@webserver_request_context_decorator
 async def get_async_jobs(request: web.Request) -> web.Response:
-    session = get_client_session(request.app)
-    async with session.request(
-        "GET",
-        request.url.with_path(str(request.app.router["list_tasks"].url_for())),
-        cookies=request.cookies,
-    ) as resp:
-        if resp.status != status.HTTP_200_OK:
-            return web.Response(
-                status=resp.status,
-                body=await resp.read(),
-                content_type=resp.content_type,
-            )
-        inprocess_tasks = (
-            Envelope[list[TaskGet]].model_validate_json(await resp.text()).data
-        )
-        assert inprocess_tasks is not None  # nosec
+    inprocess_task_manager = get_tasks_manager(request.app)
+    inprocess_task_context = get_task_context(request)
+    inprocess_tracked_tasks = inprocess_task_manager.list_tasks(inprocess_task_context)
 
     _req_ctx = RequestContext.model_validate(request)
 
@@ -85,14 +76,23 @@ async def get_async_jobs(request: web.Request) -> web.Response:
         [
             TaskGet(
                 task_id=f"{job.job_id}",
-                task_name=f"{job.job_id}",
+                task_name=job.job_name,
                 status_href=f"{request.url.with_path(str(request.app.router['get_async_job_status'].url_for(task_id=str(job.job_id))))}",
-                abort_href=f"{request.url.with_path(str(request.app.router['abort_async_job'].url_for(task_id=str(job.job_id))))}",
+                abort_href=f"{request.url.with_path(str(request.app.router['cancel_async_job'].url_for(task_id=str(job.job_id))))}",
                 result_href=f"{request.url.with_path(str(request.app.router['get_async_job_result'].url_for(task_id=str(job.job_id))))}",
             )
             for job in user_async_jobs
         ]
-        + inprocess_tasks,
+        + [
+            TaskGet(
+                task_id=f"{task.task_id}",
+                task_name=task.task_name,
+                status_href=f"{request.app.router['get_task_status'].url_for(task_id=task.task_id)}",
+                abort_href=f"{request.app.router['cancel_and_delete_task'].url_for(task_id=task.task_id)}",
+                result_href=f"{request.app.router['get_task_result'].url_for(task_id=task.task_id)}",
+            )
+            for task in inprocess_tracked_tasks
+        ],
         status=status.HTTP_200_OK,
     )
 
@@ -136,17 +136,18 @@ async def get_async_job_status(request: web.Request) -> web.Response:
 
 @routes.delete(
     _task_prefix + "/{task_id}",
-    name="abort_async_job",
+    name="cancel_async_job",
 )
 @login_required
 @permission_required("storage.files.*")
 @handle_export_data_exceptions
-async def abort_async_job(request: web.Request) -> web.Response:
+async def cancel_async_job(request: web.Request) -> web.Response:
 
     _req_ctx = RequestContext.model_validate(request)
 
     rabbitmq_rpc_client = get_rabbitmq_rpc_client(request.app)
     async_job_get = parse_request_path_parameters_as(_StorageAsyncJobId, request)
+
     await async_jobs.cancel(
         rabbitmq_rpc_client=rabbitmq_rpc_client,
         rpc_namespace=STORAGE_RPC_NAMESPACE,
@@ -155,6 +156,7 @@ async def abort_async_job(request: web.Request) -> web.Response:
             user_id=_req_ctx.user_id, product_name=_req_ctx.product_name
         ),
     )
+
     return web.Response(status=status.HTTP_204_NO_CONTENT)
 
 
