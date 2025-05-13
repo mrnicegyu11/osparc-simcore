@@ -98,7 +98,7 @@ async def _create_services_in_database(
                 ServiceMetaDataDBCreate(
                     **service_metadata.model_dump(exclude_unset=True, exclude={""}),
                     owner=owner_gid,
-                    _is_classic_dynamic_service=_is_classic_dynamic_service,
+                    is_classic_dynamic_service=_is_classic_dynamic_service,
                 ),
                 service_access_rights,
             )
